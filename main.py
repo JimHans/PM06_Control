@@ -1,7 +1,7 @@
 #-*-coding:utf-8-*-
 # Function: Main program
 #? 主程序
-#TODO Version 0.2.20230715
+#TODO Version 0.3.20230716
 #! 依赖项目：PyQt5 | OpenCV | FindAllWays.py | MapScan | Astar.py
 #* Thread 利用情况：Thread-0 UART通信
 #* Thread 利用情况：Thread-1 路径规划线程
@@ -102,10 +102,14 @@ class Example(QWidget): #TODO 主窗口类
         else:
             threading.Thread(target=serialapi.uartRx, args=()).start() #* Thread-0 开启串口接收子线程
             serialapi.communicate(0xaa,0xa1,0x00,0x00,0x00,0x00,0x00) # 发送启动信号
-            while True:
-                if serialapi.recv == 'aa 01 a1 00 00 00 00': break;# 等待接收到启动信号
-            serialapi.recv = str.encode('xxxxxxxxxxx')
-            self.lbl.setText('串口通信通路正常,系统初始化完成')
+            start_time = time.time();Serial_response=0
+            while time.time() - start_time < 8:
+                if str(serialapi.recv) == 'aa01a100000000': 
+                    serialapi.recv = str.encode('xxxxxxxxxxx')
+                    Serial_response=1
+                    self.lbl.setText('串口通信通路正常,系统初始化完成')
+                    break;# 等待接收到启动信号
+            if Serial_response==0:self.lbl.setText('串口通信通路异常,系统初始化失败')
 
 
     def startup_thread(self): #* 启动路径规划线程
@@ -120,7 +124,7 @@ class Example(QWidget): #TODO 主窗口类
 
     def Startup(self): #* 启动函数
         global result_final,boardmap
-        camera = Camera(1) # 打开相机
+        camera = Camera(5) # 打开相机
         camera.open()
         # 等待调整相机并拍照
         last_image = None
@@ -192,7 +196,7 @@ class Example(QWidget): #TODO 主窗口类
 
     def Runcar(self): #* 运行函数
         global result_final,boardmap
-        current_position = [18,-1] # 当前位置存储
+        current_position = [18,-2] # 当前位置存储
 
         #TODO 运行8段路程，完成宝藏遍历
         for itel in range(len(result_final)):
@@ -211,11 +215,11 @@ class Example(QWidget): #TODO 主窗口类
             corners.append(route_points[-1]) # 补上最终目标点
 
             #TODO 将路段数目发给下位机
-            # serialapi.communicate(0xaa,0xc1,hex(len(corners)),0x00,0x00,0x00,0x00)
-            # while True:
-            #     if serialapi.recv == 'aa 01 c1 00 00 00 00': break;# 等待接收到回复信号
-            # serialapi.recv = str.encode('xxxxxxxxxxx')
-            # self.lbl.setText('运行中...前往第'+str(itel+1)+'个宝藏点,路段数目'+str(len(corners))+'已发送') 
+            serialapi.communicate(0xaa,0xc1,eval(hex(len(corners))),0x00,0x00,0x00,0x00)
+            while True:
+                if str(serialapi.recv) == 'aa01c100000000': break;# 等待接收到回复信号
+            serialapi.recv = str.encode('xxxxxxxxxxx')
+            self.lbl.setText('运行中...前往第'+str(itel+1)+'个宝藏点,路段数目'+str(len(corners))+'已发送') 
             self.sublbl.setText("前往宝藏点"+str(itel+1)+"路段数目为"+str(len(corners)))
             print("前往宝藏点",str(itel+1),"路段数目为"+str(len(corners)))
 
@@ -247,22 +251,26 @@ class Example(QWidget): #TODO 主窗口类
                     while True: # 检测距挡板距离
                         if not((TempMarker+corner[0])<19 and boardmap[TempMarker+corner[0]][corner[1]] == 1):break
                         TempMarker += 1
+                
+                if index+1 == len(corners): # 最后一段路程
+                    single_route_steps -= 1 # 少走一步防止撞到宝藏
+
                 print("第"+str(index+1)+"段路径前往"+str(corner)+"拐点,前进方向",Direction,"测距方向",SensDirection,
                                                                 "路径长度",single_route_steps,"距挡板距离",TempMarker-1)
                 current_position = corner # 更新当前位置
                 # 发送控制指令
-                # serialapi.communicate(0xaa,0xc2,hex(index),hex(Direction),hex(Direction),hex(TempMarker-1),hex(single_route_steps))
-                # while True:
-                #     if serialapi.recv == 'aa 01 c2 '+str(hex(Direction))+' 00 00 00': break;# 等待接收到回复信号
-                # serialapi.recv = str.encode('xxxxxxxxxxx')
-                # self.lbl.setText('运行中...前往第'+str(itel+1)+'个宝藏点,路段数目'+str(len(corners))+'已发送') 
+                serialapi.communicate(0xaa,0xc2,eval(hex(index)),eval(hex(Direction)),eval(hex(Direction)),eval(hex(TempMarker-1)),eval(hex(single_route_steps)))
+                while True:
+                    if str(serialapi.recv) == 'aa01c2'+str(hex(Direction))+'000000': break;# 等待接收到回复信号
+                serialapi.recv = str.encode('xxxxxxxxxxx')
+                self.lbl.setText('运行中...前往第'+str(itel+1)+'个宝藏点,路段数目'+str(len(corners))+'已发送') 
             
             #TODO 等待运行完成
-            # while True:
-            #     if serialapi.recv == 'aa 21 00 00 00 00 00': break;# 等待接收到回复信号
-            # serialapi.recv = str.encode('xxxxxxxxxxx')
-            # 发送回复指令
-            # serialapi.communicate(0xaa,0x01,0x21,0x00,0x00,0x00,0x00)
+            while True:
+                if str(serialapi.recv) == 'aa210000000000': break;# 等待接收到回复识别请求信号
+            serialapi.recv = str.encode('xxxxxxxxxxx')
+            #TODO 发送回复指令
+            serialapi.communicate(0xaa,0x01,0x21,0x00,0x00,0x00,0x00)
             print("第"+str(itel+1)+"个宝藏点已到达,当前位置",current_position)
             self.sublbl.setText("第"+str(itel+1)+"个宝藏点已到达,当前位置"+str(current_position))
             time.sleep(1)
@@ -305,6 +313,7 @@ class Example(QWidget): #TODO 主窗口类
 
             # TODO 发送撞击指令与否
             # 等待填写
+        
 
 
 if __name__ == '__main__':

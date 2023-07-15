@@ -1,7 +1,7 @@
 #-*-coding:utf-8-*-
 # Function: Serial API
 #? 串口通信API
-#TODO Version 0.1.20230715
+#TODO Version 0.2.20230716
 #! 依赖项目：pyserial
 #! 被引用：main.py
 import serial,time
@@ -45,6 +45,7 @@ def uartRx(): # UART扫描读取封装
         if count == 0:
 
             # 读取内容并回显
-            recv = ser.readline()
-            print(str(recv))
+            recv = ser.read(6)
+            recv = recv.hex()
+            print(recv)
             ser.flushInput()
