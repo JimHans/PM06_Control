@@ -45,7 +45,7 @@ def uartRx(): # UART扫描读取封装
         if count == 0:
 
             # 读取内容并回显
-            recv = ser.read(6)
+            recv = ser.read(8)
             recv = recv.hex()
             print(recv)
             ser.flushInput()

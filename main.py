@@ -1,13 +1,13 @@
 #-*-coding:utf-8-*-
 # Function: Main program
 #? 主程序
-#TODO Version 0.3.20230716
+#TODO Version 0.4.20230716
 #! 依赖项目：PyQt5 | OpenCV | FindAllWays.py | MapScan | Astar.py
 #* Thread 利用情况：Thread-0 UART通信
 #* Thread 利用情况：Thread-1 路径规划线程
 #* Thread 利用情况：Thread-2 地图扫描线程
 import sys,cv2,time,threading # 导入系统模块,OpenCV模块
-from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QPushButton # 导入PyQt5模块
+from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QPushButton, QInputDialog # 导入PyQt5模块
 from PyQt5 import QtGui,QtCore # 导入PyQt5GUI模块
 from FindAllWays import reshape_image_find, ToBinray, GetGontours # 导入地图寻路部分
 from MapScan import  reshape_image_scan, detect, find,affine_transformation # 导入地图扫描部分
@@ -18,6 +18,7 @@ import serialapi # 导入串口模块
 
 CAMERA_WIDTH = 1280;CAMERA_HEIGHT = 720 # 设定的相机取样像素参数
 result_final = [] # 寻路结果存储
+car_color_group = 'RED' # 小车颜色存储，默认为红色
 
 '''  类封装  '''
 class Camera: #TODO 相机调取类封装
@@ -104,12 +105,16 @@ class Example(QWidget): #TODO 主窗口类
             serialapi.communicate(0xaa,0xa1,0x00,0x00,0x00,0x00,0x00) # 发送启动信号
             start_time = time.time();Serial_response=0
             while time.time() - start_time < 8:
-                if str(serialapi.recv) == 'aa01a100000000': 
+                if str(serialapi.recv)[0:14] == 'aa01a100000000': 
                     serialapi.recv = str.encode('xxxxxxxxxxx')
                     Serial_response=1
                     self.lbl.setText('串口通信通路正常,系统初始化完成')
                     break;# 等待接收到启动信号
             if Serial_response==0:self.lbl.setText('串口通信通路异常,系统初始化失败')
+        
+        # 选择阵营
+        car_color_group, ok = QInputDialog.getItem(None, '选择颜色', '请选择当前是红方还是蓝方：', ['RED', 'BLUE'])
+        self.sublbl.setText('当前阵营为：'+car_color_group+",等待路径规划完成后运行")
 
 
     def startup_thread(self): #* 启动路径规划线程
@@ -217,7 +222,7 @@ class Example(QWidget): #TODO 主窗口类
             #TODO 将路段数目发给下位机
             serialapi.communicate(0xaa,0xc1,eval(hex(len(corners))),0x00,0x00,0x00,0x00)
             while True:
-                if str(serialapi.recv) == 'aa01c100000000': break;# 等待接收到回复信号
+                if str(serialapi.recv)[0:14] == 'aa01c100000000': break;# 等待接收到回复信号
             serialapi.recv = str.encode('xxxxxxxxxxx')
             self.lbl.setText('运行中...前往第'+str(itel+1)+'个宝藏点,路段数目'+str(len(corners))+'已发送') 
             self.sublbl.setText("前往宝藏点"+str(itel+1)+"路段数目为"+str(len(corners)))
@@ -254,6 +259,8 @@ class Example(QWidget): #TODO 主窗口类
                 
                 if index+1 == len(corners): # 最后一段路程
                     single_route_steps -= 1 # 少走一步防止撞到宝藏
+                if itel+1 ==9 and index+1 == len(corners): # 前往出口路程
+                    single_route_steps = 4  # 出口路程固定为4步，冲出去
 
                 print("第"+str(index+1)+"段路径前往"+str(corner)+"拐点,前进方向",Direction,"测距方向",SensDirection,
                                                                 "路径长度",single_route_steps,"距挡板距离",TempMarker-1)
@@ -261,13 +268,13 @@ class Example(QWidget): #TODO 主窗口类
                 # 发送控制指令
                 serialapi.communicate(0xaa,0xc2,eval(hex(index)),eval(hex(Direction)),eval(hex(Direction)),eval(hex(TempMarker-1)),eval(hex(single_route_steps)))
                 while True:
-                    if str(serialapi.recv) == 'aa01c2'+str(hex(Direction))+'000000': break;# 等待接收到回复信号
+                    if str(serialapi.recv)[0:14] == 'aa01c2'+str(hex(Direction))+'000000': break;# 等待接收到回复信号
                 serialapi.recv = str.encode('xxxxxxxxxxx')
                 self.lbl.setText('运行中...前往第'+str(itel+1)+'个宝藏点,路段数目'+str(len(corners))+'已发送') 
             
             #TODO 等待运行完成
             while True:
-                if str(serialapi.recv) == 'aa210000000000': break;# 等待接收到回复识别请求信号
+                if str(serialapi.recv)[0:14] == 'aa210000000000': break;# 等待接收到回复识别请求信号
             serialapi.recv = str.encode('xxxxxxxxxxx')
             #TODO 发送回复指令
             serialapi.communicate(0xaa,0x01,0x21,0x00,0x00,0x00,0x00)
@@ -276,10 +283,10 @@ class Example(QWidget): #TODO 主窗口类
             time.sleep(1)
 
             # TODO 拍照识别
-            camera = Camera(1) # 打开相机
+            camera = Camera(5) # 打开相机
             camera.open()
             start_time = time.time()
-            while time.time() - start_time < 5:
+            while time.time() - start_time < 3:
                 ret, Treas_image = camera.read() # 读取相机宝藏图像
                 Treas_qimg = QtGui.QImage(Treas_image.data, Treas_image.shape[1], Treas_image.shape[0],Treas_image.shape[1]*3, QtGui.QImage.Format_BGR888)
                 Treas_pixmap = QtGui.QPixmap.fromImage(Treas_qimg)
@@ -312,8 +319,19 @@ class Example(QWidget): #TODO 主窗口类
             time.sleep(1)
 
             # TODO 发送撞击指令与否
-            # 等待填写
-        
+            if car_color_group == "BLUE":
+                if Treasure == "BlueTrue":
+                    serialapi.communicate(0xaa,0xd0,0x00,0x00,0x00,0x00,0x00) # 发送撞击指令
+                    while True:
+                        if str(serialapi.recv)[0:14] == 'aa01d000000000': break # 等待接收到回复信号
+                    self.sublbl.setText("可以撞击，已发送撞击指令")
+            elif car_color_group == "RED":
+                if Treasure == "RedTrue":
+                    serialapi.communicate(0xaa,0xd0,0x00,0x00,0x00,0x00,0x00)
+                    while True:
+                        if str(serialapi.recv)[0:14] == 'aa01d000000000': break # 等待接收到回复信号
+                    self.sublbl.setText("可以撞击，已发送撞击指令")
+            serialapi.recv = str.encode('xxxxxxxxxxx')
 
 
 if __name__ == '__main__':
