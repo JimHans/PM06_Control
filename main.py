@@ -1,7 +1,7 @@
 #-*-coding:utf-8-*-
 # Function: Main program
 #? 主程序
-#TODO Version 0.5.20230716
+#TODO Version 0.10.20230719
 #! 依赖项目：PyQt5 | OpenCV | FindAllWays.py | MapScan | Astar.py | Identify.py | serialapi.py | networkx | itertools
 #* Thread 利用情况：Thread-0 UART通信
 #* Thread 利用情况：Thread-1 路径规划线程
@@ -21,6 +21,7 @@ import itertools # 导入迭代器模块
 CAMERA_WIDTH = 1280;CAMERA_HEIGHT = 720 # 设定的相机取样像素参数
 result_final = [] # 寻路结果存储
 car_color_group = 'RED' # 小车颜色存储，默认为红色
+map_gui_image = 0 # 地图路径规划完成图像存储
 
 '''  类封装  '''
 class Camera: #TODO 相机调取类封装
@@ -42,6 +43,8 @@ class Camera: #TODO 相机调取类封装
     def read(self):
         self.ret, self.frame = self.cap.read()
         return self.ret, self.frame  # 返回读取结果和帧  # ret是布尔值，frame是图像数组
+    def release(self):
+        self.cap.release()
 
 class Example(QWidget): #TODO 主窗口类
 
@@ -53,7 +56,7 @@ class Example(QWidget): #TODO 主窗口类
 
 
     def initUI(self): #* 界面初始化函数
-
+        global car_color_group # 全局变量调用
         self.lbl = QLabel('系统初始化进行中', self)
         self.lbl.move(0, 10)
         self.lbl.setFixedSize(600, 30)
@@ -130,21 +133,22 @@ class Example(QWidget): #TODO 主窗口类
 
 
     def Startup(self): #* 启动函数
-        global result_final,boardmap
+        global result_final,boardmap,map_gui_image
         camera = Camera(5) # 打开相机
         camera.open()
         # 等待调整相机并拍照
         last_image = None
         start_time = time.time()
-        while time.time() - start_time < 8:
+        while time.time() - start_time < 5:
             ret, image = camera.read() # 读取相机图像
             # 将相机图像显示在控件中
             qimg = QtGui.QImage(image.data, image.shape[1], image.shape[0],image.shape[1]*3, QtGui.QImage.Format_BGR888)
             pixmap = QtGui.QPixmap.fromImage(qimg)
             self.camera_label.setPixmap(pixmap)
-            self.lbl.setText('调节时间剩余'+str(int(8-time.time() + start_time))+"秒，请注意")
+            self.lbl.setText('调节时间剩余'+str(int(5-time.time() + start_time))+"秒，请注意")
             last_image = image
 
+        camera.release()  # 释放相机资源
         #? 照片扫描加纠偏部分开始
         self.lbl.setText('照片扫描纠偏中...')
         image, new_width, new_height = reshape_image_scan(last_image)
@@ -223,16 +227,16 @@ class Example(QWidget): #TODO 主窗口类
                 shortest_tour = permutation
                 min_tour_length = tour_length
         print("最短路径：", shortest_tour, "总距离成本",min_tour_length)
+
         order = [0] * 8
         for i in range(8):
-            order[i] = shortest_tour[i]
+            order[i] = shortest_tour[i]-1
         # 将最优线路中的宝藏按顺序进行重新排列
-        for i in range(8):
-            for j in range(8):
-                if order[i] == treasureinmap[j][0]:
-                    temp = treasureinmap[i]
-                    treasureinmap[i] = treasureinmap[j]
-                    treasureinmap[j] = temp
+        temp_treasure_map = [0]*8
+        for index,orderget in enumerate(order):
+            temp_treasure_map[index] = treasureinmap[orderget]
+        treasureinmap = temp_treasure_map
+        print("最优线路:", treasureinmap)
         '''tsp部分结束'''
         result_final = []
         for j in range(-1,8,1):
@@ -253,6 +257,7 @@ class Example(QWidget): #TODO 主窗口类
         # 将图像显示在QT控件中
         qimg = QtGui.QImage(cropimg.data, cropimg.shape[1], cropimg.shape[0],cropimg.shape[1]*3, QtGui.QImage.Format_BGR888)
         pixmap = QtGui.QPixmap.fromImage(qimg)
+        map_gui_image = pixmap
         self.camera_label.setPixmap(pixmap)
         # 界面更新
         self.stbtn.setEnabled(False)
@@ -261,8 +266,11 @@ class Example(QWidget): #TODO 主窗口类
 
 
     def Runcar(self): #* 运行函数
-        global result_final,boardmap
+        global result_final,boardmap,car_color_group,map_gui_image
         current_position = [18,-2] # 当前位置存储
+        Treasure_hit_route = [0,0,0] # 宝藏点撞击方向/距挡板距离集合
+        Treasure_if_hittable = 0 # 宝藏点是否可撞击
+        calctimer = time.time() # 计时器开始
 
         #TODO 运行8段路程，完成宝藏遍历
         for itel in range(len(result_final)):
@@ -281,13 +289,30 @@ class Example(QWidget): #TODO 主窗口类
             corners.append(route_points[-1]) # 补上最终目标点
 
             #TODO 将路段数目发给下位机
-            serialapi.communicate(0xaa,0xc1,eval(hex(len(corners))),0x00,0x00,0x00,0x00)
+            Full_route_numbers = len(corners)+2 if Treasure_if_hittable == 1 else len(corners) 
+            # 如果上一个宝藏点可撞击,在下一次运动路径中注入撞击指令[路段数目+2]
+            serialapi.communicate(0xaa,0xc1,eval(hex(Full_route_numbers)),0x00,0x00,0x00,0x00)
             while True:
                 if str(serialapi.recv)[0:14] == 'aa01c100000000': break;# 等待接收到回复信号
             serialapi.recv = str.encode('xxxxxxxxxxx')
-            self.lbl.setText('运行中...前往第'+str(itel+1)+'个宝藏点,路段数目'+str(len(corners))+'已发送') 
-            self.sublbl.setText("前往宝藏点"+str(itel+1)+"路段数目为"+str(len(corners)))
-            print("前往宝藏点",str(itel+1),"路段数目为"+str(len(corners)))
+            self.lbl.setText('运行中...前往第'+str(itel+1)+'个宝藏点,路段数目'+str(Full_route_numbers)+'已发送') 
+            self.sublbl.setText("前往宝藏点"+str(itel+1)+"路段数目为"+str(Full_route_numbers))
+            print("前往宝藏点",str(itel+1),"路段数目为"+str(Full_route_numbers))
+
+            if Treasure_if_hittable == 1: # 如果上一个宝藏点可撞击,在下一次运动路径中注入撞击指令
+                # 发送控制指令
+                serialapi.communicate(0xaa,0xc2,0x00,eval(hex(Treasure_hit_route[0])),eval(hex(Treasure_hit_route[1])),eval(hex(Treasure_hit_route[2]+2)),eval(hex(2)))
+                while True:
+                    if str(serialapi.recv)[0:14] == 'aa01c200000000': break;# 等待接收到回复信号
+                serialapi.recv = str.encode('xxxxxxxxxxx')
+                self.lbl.setText('运行中...前往第'+str(itel+1)+'个宝藏点前置上一宝藏撞击指令1已发送') 
+
+                # time.sleep(0.1) # 等待0.1s
+                serialapi.communicate(0xaa,0xc2,0x01,eval(hex(Treasure_hit_route[1])),eval(hex(Treasure_hit_route[1])),eval(hex(Treasure_hit_route[2])),eval(hex(2)))
+                while True:
+                    if str(serialapi.recv)[0:14] == 'aa01c201000000': break;# 等待接收到回复信号
+                serialapi.recv = str.encode('xxxxxxxxxxx')
+                self.lbl.setText('运行中...前往第'+str(itel+1)+'个宝藏点前置上一宝藏脱离指令2已发送') 
 
             #TODO 计算并发送每段路程控制指令并等待运行完成
             for index,corner in enumerate(corners):
@@ -296,42 +321,76 @@ class Example(QWidget): #TODO 主窗口类
                 if dy2 >0: # 向右
                     Direction = 0;SensDirection = 0 if index+1 < len(corners) else 2;single_route_steps = dy2
                     TempMarker = 0 # 临时记录挡板距离
-                    while True: # 检测距挡板距离
-                        if not((TempMarker+corner[1])<19 and boardmap[corner[0]][TempMarker+corner[1]] == 1):break
-                        TempMarker += 1
+                    if index+1 == len(corners):
+                        while True: #! 检测距挡板距离-最后路径段
+                            if not((corner[1]-TempMarker)>=0 and boardmap[corner[0]][corner[1]-TempMarker] == 1):break
+                            TempMarker += 1
+                    else:
+                        while True: # 检测距挡板距离-普通路径段
+                            if not((TempMarker+corner[1])<19 and boardmap[corner[0]][TempMarker+corner[1]] == 1):break
+                            TempMarker += 1
                 elif dy2 <0: # 向左
                     Direction = 2;SensDirection = 2 if index+1 < len(corners) else 0;single_route_steps = abs(dy2)
                     TempMarker = 0 # 临时记录挡板距离
-                    while True: # 检测距挡板距离
-                        if not((corner[1]-TempMarker)>=0 and boardmap[corner[0]][corner[1]-TempMarker] == 1):break
-                        TempMarker += 1
+                    if index+1 == len(corners):
+                        while True: #! 检测距挡板距离-最后路径段
+                            if not((TempMarker+corner[1])<19 and boardmap[corner[0]][TempMarker+corner[1]] == 1):break
+                            TempMarker += 1
+                    else:
+                        while True: # 检测距挡板距离
+                            if not((corner[1]-TempMarker)>=0 and boardmap[corner[0]][corner[1]-TempMarker] == 1):break
+                            TempMarker += 1
                 elif dx2 <0: # 向上
                     Direction = 1;SensDirection = 1 if index+1 < len(corners) else 3;single_route_steps = abs(dx2)
                     TempMarker = 0 # 临时记录挡板距离
-                    while True: # 检测距挡板距离
-                        if not((corner[0]-TempMarker)>=0 and boardmap[corner[0]-TempMarker][corner[1]] == 1):break
-                        TempMarker += 1
+                    if index+1 == len(corners):
+                        while True: #! 检测距挡板距离-最后路径段
+                            if not((TempMarker+corner[0])<19 and boardmap[TempMarker+corner[0]][corner[1]] == 1):break
+                            TempMarker += 1
+                    else:
+                        while True: # 检测距挡板距离
+                            if not((corner[0]-TempMarker)>=0 and boardmap[corner[0]-TempMarker][corner[1]] == 1):break
+                            TempMarker += 1
                 elif dx2 >0: # 向下
                     Direction = 3;SensDirection = 3 if index+1 < len(corners) else 1;single_route_steps = dx2
                     TempMarker = 0 # 临时记录挡板距离
-                    while True: # 检测距挡板距离
-                        if not((TempMarker+corner[0])<19 and boardmap[TempMarker+corner[0]][corner[1]] == 1):break
-                        TempMarker += 1
+                    if index+1 == len(corners):
+                        while True: #! 检测距挡板距离-最后路径段
+                            if not((corner[0]-TempMarker)>=0 and boardmap[corner[0]-TempMarker][corner[1]] == 1):break
+                            TempMarker += 1
+                    else:
+                        while True: # 检测距挡板距离
+                            if not((TempMarker+corner[0])<19 and boardmap[TempMarker+corner[0]][corner[1]] == 1):break
+                            TempMarker += 1
                 
+                print("实际运动第"+str(index+1)+"段路径开始啦")
+                current_position = list(corner) # 更新当前位置
                 if index+1 == len(corners): # 最后一段路程
-                    single_route_steps -= 1 # 少走一步防止撞到宝藏
+                    single_route_steps -= 2 # 少走一步防止撞到宝藏
+                    TempMarker -=2 # 挡板距离也少2
+                    Treasure_hit_route = [Direction,SensDirection,TempMarker-1] # 记录宝藏撞击路程的方向与距挡板距离[如果需要撞击]
+                    if Direction == 0:current_position[1] -=2 # 修正向右当前坐标
+                    elif Direction == 1:current_position[0] +=2 # 修正向上当前坐标
+                    elif Direction == 2:current_position[1] +=2 # 修正向左当前坐标
+                    elif Direction == 3:current_position[0] -=2 # 修正向下当前坐标 
                 if itel+1 ==9 and index+1 == len(corners): # 前往出口路程
                     single_route_steps = 4  # 出口路程固定为4步，冲出去
+                    TempMarker = 5 # 出口路程固定为5步，冲出去
 
-                print("第"+str(index+1)+"段路径前往"+str(corner)+"拐点,前进方向",Direction,"测距方向",SensDirection,
-                                                                "路径长度",single_route_steps,"距挡板距离",TempMarker-1)
-                current_position = corner # 更新当前位置
+                print("实际运动第"+str(index+1)+"段路径前往"+str(corner)+"拐点,前进方向",Direction,"测距方向",SensDirection,
+                                                                "路径长",single_route_steps,"挡板距离",TempMarker-1)
                 # 发送控制指令
-                serialapi.communicate(0xaa,0xc2,eval(hex(index)),eval(hex(Direction)),eval(hex(Direction)),eval(hex(TempMarker-1)),eval(hex(single_route_steps)))
-                while True:
-                    if str(serialapi.recv)[0:14] == 'aa01c2'+str(hex(Direction))+'000000': break;# 等待接收到回复信号
+                if Treasure_if_hittable == 1:
+                    serialapi.communicate(0xaa,0xc2,eval(hex(index+2)),eval(hex(Direction)),eval(hex(SensDirection)),eval(hex(TempMarker-1)),eval(hex(single_route_steps)))
+                    while True:
+                        if str(serialapi.recv)[0:14] == 'aa01c2'+'{:02x}'.format(index+2)+'000000': break;# 等待接收到回复信号
+                else:
+                    serialapi.communicate(0xaa,0xc2,eval(hex(index)),eval(hex(Direction)),eval(hex(SensDirection)),eval(hex(TempMarker-1)),eval(hex(single_route_steps)))
+                    while True:
+                        if str(serialapi.recv)[0:14] == 'aa01c2'+'{:02x}'.format(index)+'000000': break;# 等待接收到回复信号
                 serialapi.recv = str.encode('xxxxxxxxxxx')
-                self.lbl.setText('运行中...前往第'+str(itel+1)+'个宝藏点,路段数目'+str(len(corners))+'已发送') 
+                self.lbl.setText('运行中...前往第'+str(itel+1)+'个宝藏点,路段'+str(index+1)+'已发送') 
+                # time.sleep(0.1)
             
             #TODO 等待运行完成
             while True:
@@ -341,18 +400,19 @@ class Example(QWidget): #TODO 主窗口类
             serialapi.communicate(0xaa,0x01,0x21,0x00,0x00,0x00,0x00)
             print("第"+str(itel+1)+"个宝藏点已到达,当前位置",current_position)
             self.sublbl.setText("第"+str(itel+1)+"个宝藏点已到达,当前位置"+str(current_position))
-            time.sleep(1)
+            Treasure_if_hittable = 0 # 重置宝藏撞击标志位
+            # time.sleep(1)
 
             # TODO 拍照识别
             camera = Camera(5) # 打开相机
             camera.open()
-            start_time = time.time()
-            while time.time() - start_time < 3:
+            for k in range(10):
                 ret, Treas_image = camera.read() # 读取相机宝藏图像
                 Treas_qimg = QtGui.QImage(Treas_image.data, Treas_image.shape[1], Treas_image.shape[0],Treas_image.shape[1]*3, QtGui.QImage.Format_BGR888)
                 Treas_pixmap = QtGui.QPixmap.fromImage(Treas_qimg)
                 self.camera_label.setPixmap(Treas_pixmap)
-                self.sublbl.setText('剩余'+str(int(3-time.time() + start_time))+"秒进行拍摄识别")
+                self.sublbl.setText("正在进行拍摄识别...")
+            camera.release()  # 释放相机资源
             Treas_img_copy = Treas_image.copy()
             Treas_image = reshape_image_scan(Treas_image)[0]
             copy_img = Treas_image
@@ -373,26 +433,45 @@ class Example(QWidget): #TODO 主窗口类
             else:
                 self.sublbl.setText('无宝藏');print("无宝藏");Treasure = "None"
 
-            Identify.ShapeDetection(copy_img, contours, Treasure)  #形状检测
+            if Treasure != "None":
+                Identify.ShapeDetection(copy_img, contours, Treasure)  #形状检测
             Treas_qimg = QtGui.QImage(copy_img.data, copy_img.shape[1], copy_img.shape[0],copy_img.shape[1]*3, QtGui.QImage.Format_BGR888)
             Treas_pixmap = QtGui.QPixmap.fromImage(Treas_qimg)
             self.camera_label.setPixmap(Treas_pixmap)
-            time.sleep(1)
+            # time.sleep(1)
 
             # TODO 发送撞击指令与否
             if car_color_group == "BLUE":
                 if Treasure == "BlueTrue":
-                    serialapi.communicate(0xaa,0xd0,0x00,0x00,0x00,0x00,0x00) # 发送撞击指令
-                    while True:
-                        if str(serialapi.recv)[0:14] == 'aa01d000000000': break # 等待接收到回复信号
-                    self.sublbl.setText("可以撞击，已发送撞击指令")
+                    # serialapi.communicate(0xaa,0xd0,0x00,0x00,0x00,0x00,0x00) # 发送撞击指令
+                    # while True:
+                    #     if str(serialapi.recv)[0:14] == 'aa01d000000000': break # 等待接收到回复信号
+                    Treasure_if_hittable = 1 # 宝藏点可撞击
+                    self.sublbl.setText("可以撞击，已注入撞击指令")
+                    print("可以撞击，已注入撞击指令")
+                else:
+                    Treasure_if_hittable = 0 # 宝藏点不可撞击
+                    print("不可以撞击，未注入撞击指令")
             elif car_color_group == "RED":
                 if Treasure == "RedTrue":
-                    serialapi.communicate(0xaa,0xd0,0x00,0x00,0x00,0x00,0x00)
-                    while True:
-                        if str(serialapi.recv)[0:14] == 'aa01d000000000': break # 等待接收到回复信号
-                    self.sublbl.setText("可以撞击，已发送撞击指令")
+                    # serialapi.communicate(0xaa,0xd0,0x00,0x00,0x00,0x00,0x00)
+                    # while True:
+                    #     if str(serialapi.recv)[0:14] == 'aa01d000000000': break # 等待接收到回复信号
+                    Treasure_if_hittable = 1 # 宝藏点可撞击
+                    self.sublbl.setText("可以撞击，已注入撞击指令")
+                    print("可以撞击，已注入撞击指令")
+                else:
+                    Treasure_if_hittable = 0 # 宝藏点不可撞击
+                    print("不可以撞击，未注入撞击指令")
             serialapi.recv = str.encode('xxxxxxxxxxx')
+            self.camera_label.setPixmap(map_gui_image)
+        
+        # TODO 到达终点
+        self.sublbl.setText('Misson Complete');self.lbl.setText('完成运行,耗时'+'{:.1f}'.format(time.time() - calctimer)+'秒')
+        pixmap = QtGui.QPixmap('test.png')
+        # 在 QLabel 控件中显示图片
+        self.camera_label.setPixmap(pixmap)
+
 
 
 if __name__ == '__main__':
