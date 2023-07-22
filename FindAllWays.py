@@ -1,7 +1,7 @@
 #-*-coding:utf-8-*-
 # Function: Find Ways algorithm
 #? 寻路算法实现模组
-#TODO Version 0.1.20230714
+#TODO Version 0.2.20230723
 #! 依赖项目：numpy | OpenCV
 #! 被引用：main.py
 import cv2
@@ -27,7 +27,9 @@ def ToBinray(image): #* 转二进制图像
     # 1、灰度图
     imgray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     # 2、二进制图像
-    ret, binary = cv2.threshold(imgray, 127, 255, 0)
+    # ret, binary = cv2.threshold(imgray, 127, 255, 0)
+    blur = cv2.GaussianBlur(imgray, (5, 5), 0)
+    ret, binary=cv2.threshotd (blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     return ret, binary
 
 

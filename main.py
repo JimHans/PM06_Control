@@ -1,7 +1,7 @@
 #-*-coding:utf-8-*-
 # Function: Main program
 #? 主程序
-#TODO Version 0.10.20230719
+#TODO Version 0.11.20230723
 #! 依赖项目：PyQt5 | OpenCV | FindAllWays.py | MapScan | Astar.py | Identify.py | serialapi.py | networkx | itertools
 #* Thread 利用情况：Thread-0 UART通信
 #* Thread 利用情况：Thread-1 路径规划线程
@@ -21,7 +21,8 @@ import itertools # 导入迭代器模块
 CAMERA_WIDTH = 1280;CAMERA_HEIGHT = 720 # 设定的相机取样像素参数
 result_final = [] # 寻路结果存储
 car_color_group = 'RED' # 小车颜色存储，默认为红色
-map_gui_image = 0 # 地图路径规划完成图像存储
+map_gui_image = None ;map_cv2_image = None# 地图路径规划完成图像存储
+cell = None # 地图单元格大小
 
 '''  类封装  '''
 class Camera: #TODO 相机调取类封装
@@ -74,6 +75,13 @@ class Example(QWidget): #TODO 主窗口类
         self.stbtn.clicked.connect(self.startup_thread) # 修改按钮行为为启动特定函数“Startup”
         self.stbtn.move(40, 80)
         self.stbtn.setFixedSize(160, 50)
+        # 仿真按钮
+        self.simbtn = QPushButton(self)
+        self.simbtn.setGeometry(40, 150, 160, 50)
+        self.simbtn.setStyleSheet("QPushButton { border-image: url(simunready.png);}")
+        self.simbtn.setFixedSize(72, 72)
+        self.simbtn.clicked.connect(self.simulate_thread) # 修改按钮行为为启动特定函数“Simulate”
+        self.simbtn.setEnabled(False)
         # 运行按钮
         self.runbtn = QPushButton('启动AutoCar运行', self)
         self.runbtn.clicked.connect(self.runcar_thread) # 修改按钮行为为启动小车运行函数
@@ -88,6 +96,7 @@ class Example(QWidget): #TODO 主窗口类
 
         self.setGeometry(100, 40, 600, 400)
         self.setWindowTitle('CARSYS')
+        self.setWindowIcon(QtGui.QIcon('icon.png'))
         self.setFont(QtGui.QFont("Arial", 16)) # 修改字体大小为16px
 
         # 添加一个用于显示相机图像的控件
@@ -96,7 +105,7 @@ class Example(QWidget): #TODO 主窗口类
         self.camera_label.setFixedSize(340, 240)
         self.camera_label.setScaledContents(True)
         # 加载一张图片
-        pixmap = QtGui.QPixmap('test.png')
+        pixmap = QtGui.QPixmap('layla.png')
         # 在 QLabel 控件中显示图片
         self.camera_label.setPixmap(pixmap)
         self.show()
@@ -127,13 +136,18 @@ class Example(QWidget): #TODO 主窗口类
         t.start()
 
 
+    def simulate_thread(self): #* 启动仿真线程
+        t = threading.Thread(target=self.Simulate)
+        t.start()
+
+
     def runcar_thread(self): #* 启动运行线程
         t = threading.Thread(target=self.Runcar)
         t.start()
 
 
     def Startup(self): #* 启动函数
-        global result_final,boardmap,map_gui_image
+        global result_final,boardmap,map_gui_image,cell,map_cv2_image
         camera = Camera(5) # 打开相机
         camera.open()
         # 等待调整相机并拍照
@@ -149,6 +163,8 @@ class Example(QWidget): #TODO 主窗口类
             last_image = image
 
         camera.release()  # 释放相机资源
+        last_image = cv2.imread('./test/mapwithpoint1.jpg')# 读取test.jpg
+
         #? 照片扫描加纠偏部分开始
         self.lbl.setText('照片扫描纠偏中...')
         image, new_width, new_height = reshape_image_scan(last_image)
@@ -258,11 +274,44 @@ class Example(QWidget): #TODO 主窗口类
         qimg = QtGui.QImage(cropimg.data, cropimg.shape[1], cropimg.shape[0],cropimg.shape[1]*3, QtGui.QImage.Format_BGR888)
         pixmap = QtGui.QPixmap.fromImage(qimg)
         map_gui_image = pixmap
+        map_cv2_image = cropimg
         self.camera_label.setPixmap(pixmap)
         # 界面更新
         self.stbtn.setEnabled(False)
         self.runbtn.setEnabled(True)
-        self.lbl.setText('路径规划完成,请按下Enter运行...')
+        self.simbtn.setEnabled(True)
+        self.lbl.setText('路径规划完成,可以进行路径模拟或按下Enter运行...')
+        self.simbtn.setStyleSheet("QPushButton { border-image: url(sim.png);}")
+
+
+    def Simulate(self): #* 仿真函数
+        global result_final,boardmap,cell,map_cv2_image
+        self.simbtn.setEnabled(False)
+        self.simbtn.setStyleSheet("QPushButton { border-image: url(simunready.png);}") # 按钮状态修改为不可执行，等待模拟完成后解除
+        self.lbl.setText('模拟系统启动，正在模拟运行...')
+        sim_timer = time.time() # 计时器开始
+        for index,router in enumerate(result_final):
+            temp_img = map_cv2_image.copy()
+            self.sublbl.setText('正在前往目标点'+str(index+1)+'...')
+            for j in range(len(router)): # 绘制线段
+                cv2.circle(temp_img, (cell * router[j][1] + int(cell * 3), cell * router[j][0] + int(cell * 1)), 2, (0, 0, 255), 6)
+                if j != 0:
+                    cv2.line(temp_img, (cell * router[j][1] + int(cell * 3), cell * router[j][0] + int(cell * 1)),
+                            (cell * router[j - 1][1] + int(cell * 3), cell * router[j - 1][0] + int(cell * 1)), (255, 0, 0), 6)
+                cv2.circle(temp_img, (cell * router[j][1] + int(cell * 3), cell * router[j][0] + int(cell * 1)), 2, (0, 0, 255), 6)
+                if(j%3==1): 
+                    cv2.circle(temp_img, (cell * router[-1][1] + int(cell * 3), cell * router[-1][0] + int(cell * 1)), 2, (0, 0, 255), 24)
+                    cv2.circle(temp_img, (cell * router[0][1] + int(cell * 3), cell * router[0][0] + int(cell * 1)), 2, (50, 255, 0), 24)
+                else: 
+                    cv2.circle(temp_img, (cell * router[-1][1] + int(cell * 3), cell * router[-1][0] + int(cell * 1)), 2, (255, 0, 0), 24)
+                    cv2.circle(temp_img, (cell * router[0][1] + int(cell * 3), cell * router[0][0] + int(cell * 1)), 2, (255, 255, 255), 24)
+                # 将图像显示在QT控件中
+                qimg = QtGui.QImage(temp_img.data, temp_img.shape[1], temp_img.shape[0],temp_img.shape[1]*3, QtGui.QImage.Format_BGR888)
+                pixmap = QtGui.QPixmap.fromImage(qimg)
+                self.camera_label.setPixmap(pixmap)
+                time.sleep(0.2) # 模拟运行延时
+        self.lbl.setText('模拟运行完成，预计耗时'+str(int(time.time()-sim_timer))+'秒')
+        self.simbtn.setEnabled(True)
 
 
     def Runcar(self): #* 运行函数
@@ -468,7 +517,7 @@ class Example(QWidget): #TODO 主窗口类
         
         # TODO 到达终点
         self.sublbl.setText('Misson Complete');self.lbl.setText('完成运行,耗时'+'{:.1f}'.format(time.time() - calctimer)+'秒')
-        pixmap = QtGui.QPixmap('test.png')
+        pixmap = QtGui.QPixmap('layla.png')
         # 在 QLabel 控件中显示图片
         self.camera_label.setPixmap(pixmap)
 
