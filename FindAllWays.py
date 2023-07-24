@@ -29,7 +29,7 @@ def ToBinray(image): #* 转二进制图像
     # 2、二进制图像
     # ret, binary = cv2.threshold(imgray, 127, 255, 0)
     blur = cv2.GaussianBlur(imgray, (5, 5), 0)
-    ret, binary=cv2.threshotd (blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    ret, binary=cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     return ret, binary
 
 
