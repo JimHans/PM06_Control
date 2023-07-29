@@ -1,7 +1,7 @@
 #-*-coding:utf-8-*-
 # Function: Main program
 #? 主程序
-#TODO Version 0.12.20230725
+#TODO Version 0.15.20230730
 #! 依赖项目：PyQt5 | OpenCV | FindAllWays.py | MapScan | Astar.py | Identify.py | serialapi.py | networkx | itertools
 #* Thread 利用情况：Thread-0 UART通信
 #* Thread 利用情况：Thread-1 路径规划线程
@@ -12,7 +12,7 @@ from PyQt5 import QtGui,QtCore # 导入PyQt5GUI模块
 from FindAllWays import reshape_image_find, ToBinray, GetGontours # 导入地图寻路部分
 from MapScan import reshape_image_scan, detect, find,affine_transformation # 导入地图扫描部分
 from Astar_cy import Map,astar,tsp # 导入A*算法部分
-import Identify # 导入识别模块
+import Identify_cy # 导入识别模块
 import numpy as np # 导入Numpy模块
 import serialapi # 导入串口模块
 # import networkx as nx # 导入网络图模块
@@ -23,6 +23,8 @@ result_final = [] # 寻路结果存储
 car_color_group = 'RED' # 小车颜色存储，默认为红色
 map_gui_image = None ;map_cv2_image = None# 地图路径规划完成图像存储
 cell = None # 地图单元格大小
+True_Treas_Num = 0 # 已遍历真实宝藏点数目
+
 
 '''  类封装  '''
 class Camera: #TODO 相机调取类封装
@@ -147,7 +149,7 @@ class Example(QWidget): #TODO 主窗口类
 
 
     def Startup(self): #* 启动函数
-        global result_final,boardmap,map_gui_image,cell,map_cv2_image
+        global result_final,boardmap,map_gui_image,cell,map_cv2_image,treasureinmap
         camera = Camera(5) # 打开相机
         camera.open()
         # 等待调整相机并拍照
@@ -197,65 +199,6 @@ class Example(QWidget): #TODO 主窗口类
 
         self.lbl.setText('路径规划进行中...')
         treasureinmap = tsp(boardmap,treasureinmap) # 调用tsp算法
-        # '''tsp部分'''
-        # # 计算起点(18,0)到各个宝藏的距离
-        # firstdistance = []
-        # for i in range(len(treasureinmap)):
-        #     map = Map(boardmap, 18, 0, treasureinmap[i][1], treasureinmap[i][0])
-        #     result = astar(map)
-        #     np.append(firstdistance,len(result) - 1)
-        # # print("firstdistance:", firstdistance)
-        # # 将距离起点最近的宝藏放在第一个
-        # for i in range(len(firstdistance)):
-        #     if firstdistance[i] == min(firstdistance):
-        #         temp = treasureinmap[0]
-        #         treasureinmap[0] = treasureinmap[i]
-        #         treasureinmap[i] = temp
-        # # print("treasureinmap1:", treasureinmap)
-        # # 计算各个宝藏之间的距离
-        # distances = [[0 for i in range(8)] for j in range(8)]
-        # for i in range(8):
-        #     for j in range(8):
-        #         if i == j:
-        #             distances[i][j] = 0
-        #         else:
-        #             map = Map(boardmap, treasureinmap[i][1], treasureinmap[i][0], treasureinmap[j][1],
-        #                         treasureinmap[j][0])
-        #             result = astar(map)
-        #             distances[i][j] = len(result) - 1
-        # # print("距离矩阵distance:", distances)
-        # # 停止计时
-        # #print("计算距离矩阵用时：", end - start)
-        # # 计算最短路径
-        # # 定义城市和距离矩阵
-        # cities = [1, 2, 3, 4, 5, 6, 7, 8]
-        # # 创建完全图
-        # G = nx.Graph()
-        # G.add_nodes_from(cities)
-        # for i, j in itertools.combinations(range(len(cities)), 2):
-        #     G.add_edge(cities[i], cities[j], weight=distances[i][j])
-
-        # # 求解旅行商问题
-        # shortest_tour = None
-        # min_tour_length = float('inf')
-        # for permutation in itertools.permutations(cities):
-        #     tour_length = sum([G[permutation[i]][permutation[i + 1]]['weight'] for i in range(len(cities) - 1)])
-        #     tour_length += G[permutation[-1]][permutation[0]]['weight']
-        #     if tour_length < min_tour_length:
-        #         shortest_tour = permutation
-        #         min_tour_length = tour_length
-        # print("最短路径：", shortest_tour, "总距离成本",min_tour_length)
-
-        # order = [0] * 8
-        # for i in range(8):
-        #     order[i] = shortest_tour[i]-1
-        # # 将最优线路中的宝藏按顺序进行重新排列
-        # temp_treasure_map = [0]*8
-        # for index,orderget in enumerate(order):
-        #     temp_treasure_map[index] = treasureinmap[orderget]
-        # treasureinmap = temp_treasure_map
-        # print("最优线路:", treasureinmap)
-        # '''tsp部分结束'''
         result_final = []
         for j in range(-1,8,1):
             if j==-1: map = Map(boardmap, 18,0,treasureinmap[j+1][1],treasureinmap[j+1][0],)
@@ -317,11 +260,14 @@ class Example(QWidget): #TODO 主窗口类
 
 
     def Runcar(self): #* 运行函数
-        global result_final,boardmap,car_color_group,map_gui_image
+        global result_final,boardmap,car_color_group,map_gui_image,True_Treas_Num,treasureinmap
         current_position = [18,-2] # 当前位置存储
         Treasure_hit_route = [0,0,0] # 宝藏点撞击方向/距挡板距离集合
         Treasure_if_hittable = 0 # 宝藏点是否可撞击
+        final_point_route = 0 # 最终路程标记
         calctimer = time.time() # 计时器开始
+        camera = Camera(5) # 提前打开相机
+        camera.open()
 
         #TODO 运行8段路程，完成宝藏遍历
         for itel in range(len(result_final)):
@@ -329,6 +275,19 @@ class Example(QWidget): #TODO 主窗口类
 
             #TODO 计算拐点
             route_points = result_final[itel]
+
+            if True_Treas_Num == 3: # 如果已经遍历了3个宝藏点，准备离开迷宫
+                for i in range(8):
+                    boardmap[treasureinmap[i][1]][treasureinmap[i][0]] = 0 # 屏蔽掉所有宝藏点不能走
+                boardmap[0][18] = 1 # 开放出口
+                final_map = Map(boardmap, current_position[0],current_position[1],0,18)
+                final_map_result = astar(final_map)
+                final_map_result.reverse()
+                final_map_result = np.asarray(final_map_result)
+                self.lbl.setText('运行中...前往终点')
+                route_points = final_map_result
+                final_point_route = 1 # 标记为最终路程
+
             corners = []
             print(len(route_points) - 1)
             for j in range(1,len(route_points) - 1,1):
@@ -424,7 +383,7 @@ class Example(QWidget): #TODO 主窗口类
                     elif Direction == 1:current_position[0] +=2 # 修正向上当前坐标
                     elif Direction == 2:current_position[1] +=2 # 修正向左当前坐标
                     elif Direction == 3:current_position[0] -=2 # 修正向下当前坐标 
-                if itel+1 ==9 and index+1 == len(corners): # 前往出口路程
+                if (itel+1 ==9 and index+1 == len(corners)) or (index+1 == len(corners) and final_point_route == 1): # 前往出口路程
                     single_route_steps = 4  # 出口路程固定为4步，冲出去
                     TempMarker = 5 # 出口路程固定为5步，冲出去
 
@@ -454,24 +413,24 @@ class Example(QWidget): #TODO 主窗口类
             Treasure_if_hittable = 0 # 重置宝藏撞击标志位
             # time.sleep(1)
 
+            #TODO 如果已经是最终路程，退出循环
+            if final_point_route == 1:break
+
             # TODO 拍照识别
-            camera = Camera(5) # 打开相机
-            camera.open()
-            for k in range(10):
+            for k in range(4):
                 ret, Treas_image = camera.read() # 读取相机宝藏图像
                 Treas_qimg = QtGui.QImage(Treas_image.data, Treas_image.shape[1], Treas_image.shape[0],Treas_image.shape[1]*3, QtGui.QImage.Format_BGR888)
                 Treas_pixmap = QtGui.QPixmap.fromImage(Treas_qimg)
                 self.camera_label.setPixmap(Treas_pixmap)
                 self.sublbl.setText("正在进行拍摄识别...")
-            camera.release()  # 释放相机资源
             Treas_img_copy = Treas_image.copy()
             Treas_image = reshape_image_scan(Treas_image)[0]
             copy_img = Treas_image
 
-            Treas_image, contours, yellow = Identify.FindColorOne(Treas_img_copy, 1)  # 黄色
-            Treas_image, contours, green = Identify.FindColorOne(Treas_img_copy, 2)  # 绿色
-            Treas_image, contours, blue = Identify.FindColorOne(Treas_img_copy, 0)  # 蓝色
-            Treas_image, contours, red = Identify.FindRedOne(Treas_img_copy, contours)  # 红色
+            Treas_image, contours, yellow = Identify_cy.FindColorOne(Treas_img_copy, 1)  # 黄色
+            Treas_image, contours, green = Identify_cy.FindColorOne(Treas_img_copy, 2)  # 绿色
+            Treas_image, contours, blue = Identify_cy.FindColorOne(Treas_img_copy, 0)  # 蓝色
+            Treas_image, contours, red = Identify_cy.FindRedOne(Treas_img_copy, contours)  # 红色
             #蓝色1，黄色1，为蓝色真宝藏；红色1，绿色1，为红色真宝藏；蓝色1，绿色1，为蓝色假宝藏；红色1，黄色1，为红色假宝藏
             if blue == 1 and yellow == 1:
                 self.sublbl.setText('蓝色真宝藏');print("蓝色真宝藏");Treasure = "BlueTrue"
@@ -485,7 +444,7 @@ class Example(QWidget): #TODO 主窗口类
                 self.sublbl.setText('无宝藏');print("无宝藏");Treasure = "None"
 
             if Treasure != "None":
-                Identify.ShapeDetection(copy_img, contours, Treasure)  #形状检测
+                Identify_cy.ShapeDetection(copy_img, contours, Treasure)  #形状检测
             Treas_qimg = QtGui.QImage(copy_img.data, copy_img.shape[1], copy_img.shape[0],copy_img.shape[1]*3, QtGui.QImage.Format_BGR888)
             Treas_pixmap = QtGui.QPixmap.fromImage(Treas_qimg)
             self.camera_label.setPixmap(Treas_pixmap)
@@ -500,6 +459,7 @@ class Example(QWidget): #TODO 主窗口类
                     Treasure_if_hittable = 1 # 宝藏点可撞击
                     self.sublbl.setText("可以撞击，已注入撞击指令")
                     print("可以撞击，已注入撞击指令")
+                    True_Treas_Num += 1 # 真宝藏数量+1
                 else:
                     Treasure_if_hittable = 0 # 宝藏点不可撞击
                     print("不可以撞击，未注入撞击指令")
@@ -511,6 +471,7 @@ class Example(QWidget): #TODO 主窗口类
                     Treasure_if_hittable = 1 # 宝藏点可撞击
                     self.sublbl.setText("可以撞击，已注入撞击指令")
                     print("可以撞击，已注入撞击指令")
+                    True_Treas_Num += 1 # 真宝藏数量+1
                 else:
                     Treasure_if_hittable = 0 # 宝藏点不可撞击
                     print("不可以撞击，未注入撞击指令")
@@ -519,10 +480,10 @@ class Example(QWidget): #TODO 主窗口类
         
         # TODO 到达终点
         self.sublbl.setText('Misson Complete');self.lbl.setText('完成运行,耗时'+'{:.1f}'.format(time.time() - calctimer)+'秒')
+        camera.release()  # 释放相机资源
         pixmap = QtGui.QPixmap('layla.png')
         # 在 QLabel 控件中显示图片
         self.camera_label.setPixmap(pixmap)
-
 
 
 if __name__ == '__main__':
