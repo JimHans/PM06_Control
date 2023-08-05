@@ -5361,7 +5361,7 @@ static PyObject *__pyx_pf_8Astar_cy_2tsp(CYTHON_UNUSED PyObject *__pyx_self, PyO
  *         temp_treasure_map[index] = treasureinmap[orderget]
  *     treasureinmap = temp_treasure_map             # <<<<<<<<<<<<<<
  *     print(":", treasureinmap)
- *     return treasureinmap
+ *     return treasureinmap,distances
  */
   __Pyx_INCREF(__pyx_v_temp_treasure_map);
   __Pyx_DECREF_SET(__pyx_v_treasureinmap, __pyx_v_temp_treasure_map);
@@ -5370,7 +5370,7 @@ static PyObject *__pyx_pf_8Astar_cy_2tsp(CYTHON_UNUSED PyObject *__pyx_self, PyO
  *         temp_treasure_map[index] = treasureinmap[orderget]
  *     treasureinmap = temp_treasure_map
  *     print(":", treasureinmap)             # <<<<<<<<<<<<<<
- *     return treasureinmap
+ *     return treasureinmap,distances
  *     '''tsp'''
  */
   __pyx_t_8 = PyTuple_New(2); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 159, __pyx_L1_error)
@@ -5389,12 +5389,20 @@ static PyObject *__pyx_pf_8Astar_cy_2tsp(CYTHON_UNUSED PyObject *__pyx_self, PyO
   /* "Astar_cy.pyx":160
  *     treasureinmap = temp_treasure_map
  *     print(":", treasureinmap)
- *     return treasureinmap             # <<<<<<<<<<<<<<
+ *     return treasureinmap,distances             # <<<<<<<<<<<<<<
  *     '''tsp'''
  */
   __Pyx_XDECREF(__pyx_r);
+  __pyx_t_3 = PyTuple_New(2); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 160, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_3);
   __Pyx_INCREF(__pyx_v_treasureinmap);
-  __pyx_r = __pyx_v_treasureinmap;
+  __Pyx_GIVEREF(__pyx_v_treasureinmap);
+  PyTuple_SET_ITEM(__pyx_t_3, 0, __pyx_v_treasureinmap);
+  __Pyx_INCREF(__pyx_v_distances);
+  __Pyx_GIVEREF(__pyx_v_distances);
+  PyTuple_SET_ITEM(__pyx_t_3, 1, __pyx_v_distances);
+  __pyx_r = __pyx_t_3;
+  __pyx_t_3 = 0;
   goto __pyx_L0;
 
   /* "Astar_cy.pyx":101

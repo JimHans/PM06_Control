@@ -1,7 +1,7 @@
 #-*-coding:utf-8-*-
 # Function: Identify Treasure
 #? 宝藏识别模块
-#TODO Version 0.2.20230715
+#TODO Version 1.0.20230805
 #! 依赖项目：OpenCV | numpy
 import cv2
 import numpy
@@ -63,7 +63,7 @@ def FindColorOne(frame,Color):  # (图片，颜色（0蓝，1黄，2绿）)
     frame = reshape_image_scan(frame)
     frame = frame[0]
 
-    colorLow_Blue = numpy.array([100, 43, 46])
+    colorLow_Blue = numpy.array([86, 43, 46])
     colorHigh_Blue = numpy.array([124, 255, 255])
 
     colorLow_Yellow = numpy.array([26, 43, 46])
@@ -87,7 +87,7 @@ def FindColorOne(frame,Color):  # (图片，颜色（0蓝，1黄，2绿）)
 
     # Blur methods available, comment or uncomment to try different blur methods.
     frameBGR = cv2.GaussianBlur(frame, (7, 7), 0)
-    # frameBGR = cv2.medianBlur(frameBGR, 7)
+    # frameBGR = cv2.medianBlur(frameBGR, 5)
     # frameBGR = cv2.bilateralFilter(frameBGR, 15 ,75, 75)
     # Show blurred image.
     # cv2.imshow('blurred', frameBGR)
@@ -157,8 +157,8 @@ def FindRedOne(frame,contours):
     # cv2.imshow('frame', frame)
 
     # Blur methods available, comment or uncomment to try different blur methods.
-    frameBGR = cv2.GaussianBlur(frame, (15, 15), 10)
-    # frameBGR = cv2.medianBlur(frameBGR, 7)
+    frameBGR = cv2.GaussianBlur(frame, (7, 7), 10)
+    # frameBGR = cv2.medianBlur(frameBGR, 5)
     # frameBGR = cv2.bilateralFilter(frameBGR, 15 ,75, 75)
     # Show blurred image.
     # cv2.imshow('blurred', frameBGR)

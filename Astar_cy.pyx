@@ -1,7 +1,7 @@
 #-*-coding:utf-8-*-
 # Function: Astar algorithm
 #? AStar算法实现模组
-#TODO Version 0.3.20230729
+#TODO Version 2.0.20230805
 #! 依赖项目：numpy networkx itertools
 #! 被引用：main.py
 import numpy as np
@@ -157,5 +157,5 @@ def tsp(boardmap,treasureinmap):
         temp_treasure_map[index] = treasureinmap[orderget]
     treasureinmap = temp_treasure_map
     print("最优线路:", treasureinmap)
-    return treasureinmap
+    return treasureinmap,distances
     '''tsp部分结束'''

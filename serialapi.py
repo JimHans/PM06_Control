@@ -1,7 +1,7 @@
 #-*-coding:utf-8-*-
 # Function: Serial API
 #? 串口通信API
-#TODO Version 0.10.20230719
+#TODO Version 1.0.20230805
 #! 依赖项目：pyserial
 #! 被引用：main.py
 import serial,time
@@ -27,7 +27,7 @@ def communicate(RB0,RB1,RB2,RB3,RB4,RB5,RB6): # 下位机数据传输函数
     byte_text = bytes.fromhex(hexcomm)
     ser.write(byte_text)
     print(hexcomm)
-    time.sleep(0.1)    # 必要的软件延时
+    time.sleep(0.02)    # 必要的软件延时
 
 ''' Thread-0 UART扫描读取封装 '''
 def uartRx(): # UART扫描读取封装
