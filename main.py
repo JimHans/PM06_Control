@@ -1,7 +1,7 @@
 #-*-coding:utf-8-*-
 # Function: Main program
 #? 主程序
-#TODO Version 1.0.20230803
+#TODO Version 1.0.20230805
 #! 依赖项目：PyQt5 | OpenCV | FindAllWays.py | MapScan | Astar.py | Identify.py | serialapi.py | networkx | itertools
 #* Thread 利用情况：Thread-0 UART通信
 #* Thread 利用情况：Thread-1 路径规划线程
@@ -12,7 +12,7 @@ from PyQt5 import QtGui,QtCore # 导入PyQt5GUI模块
 from PyQt5.QtCore import QUrl # 导入PyQt5多媒体模块
 from PyQt5.QtMultimedia import QMediaPlayer,QMediaContent # 导入PyQt5多媒体模块
 from FindAllWays import reshape_image_find, ToBinray, GetGontours # 导入地图寻路部分
-from MapScan import reshape_image_scan, detect, find,affine_transformation # 导入地图扫描部分
+from MapScan_cy import reshape_image_scan, detect, find,affine_transformation # 导入地图扫描部分
 from Astar_cy import Map,astar,tsp # 导入A*算法部分
 import Identify_cy # 导入识别模块
 import numpy as np # 导入Numpy模块
@@ -207,7 +207,7 @@ class Example(QWidget): #TODO 主窗口类
         #? 地图扫描输出数组部分结束
 
         self.lbl.setText('路径规划进行中...')
-        treasureinmap = tsp(boardmap,treasureinmap) # 调用tsp算法
+        treasureinmap,map_useless = tsp(boardmap,treasureinmap) # 调用tsp算法
         result_final = []
         for j in range(-1,8,1):
             if j==-1: map = Map(boardmap, 18,0,treasureinmap[j+1][1],treasureinmap[j+1][0],)
@@ -330,17 +330,11 @@ class Example(QWidget): #TODO 主窗口类
             #TODO 将撞击指令单独发给下位机
             if Treasure_if_hittable == 1: # 如果上一个宝藏点可撞击,在下一次运动路径中注入撞击指令
                 # 发送控制指令
-                serialapi.communicate(0xaa,0xc2,0x00,eval(hex(Treasure_hit_route[0])),eval(hex(Treasure_hit_route[1])),eval(hex(Treasure_hit_route[2]+2)),eval(hex(0)))
+                serialapi.communicate(0xaa,0xc2,0x00,eval(hex(Treasure_hit_route[0])),eval(hex(Treasure_hit_route[1]+4)),eval(hex(Treasure_hit_route[2]+2)),eval(hex(0)))
                 while True:
                     if str(serialapi.recv)[0:14] == 'aa01c200000000': break;# 等待接收到回复信号
                 serialapi.recv = str.encode('xxxxxxxxxxx')
                 self.lbl.setText('运行中...前往第'+str(itel+1)+'个宝藏点前置上一宝藏撞击指令已发送') 
-
-                # serialapi.communicate(0xaa,0xc2,0x01,eval(hex(Treasure_hit_route[1])),eval(hex(Treasure_hit_route[1])),eval(hex(Treasure_hit_route[2])),eval(hex(2)))
-                # while True:
-                #     if str(serialapi.recv)[0:14] == 'aa01c201000000': break;# 等待接收到回复信号
-                # serialapi.recv = str.encode('xxxxxxxxxxx')
-                # self.lbl.setText('运行中...前往第'+str(itel+1)+'个宝藏点前置上一宝藏脱离指令已发送') 
 
             #TODO 计算并发送每段路程控制指令并等待运行完成
             for index,corner in enumerate(corners):
@@ -478,8 +472,7 @@ class Example(QWidget): #TODO 主窗口类
                     self.camera_label.setPixmap(Treas_pixmap)
                     break
             Treas_img_copy = Treas_image.copy()
-            Treas_image = reshape_image_scan(Treas_image)[0]
-            # copy_img = Treas_image
+            Treas_image = Identify_cy.reshape_image_scan(Treas_image)[0]
 
             Treas_image, contours, yellow = Identify_cy.FindColorOne(Treas_img_copy, 1)  # 黄色
             Treas_image, contours, green = Identify_cy.FindColorOne(Treas_img_copy, 2)  # 绿色
@@ -497,18 +490,9 @@ class Example(QWidget): #TODO 主窗口类
             else:
                 self.sublbl.setText('无宝藏');print("无宝藏");Treasure = "None"
 
-            # if Treasure != "None":
-            #     Identify_cy.ShapeDetection(copy_img, contours, Treasure)  #形状检测-停止显示
-            # Treas_qimg = QtGui.QImage(copy_img.data, copy_img.shape[1], copy_img.shape[0],copy_img.shape[1]*3, QtGui.QImage.Format_BGR888)
-            # Treas_pixmap = QtGui.QPixmap.fromImage(Treas_qimg)
-            # self.camera_label.setPixmap(Treas_pixmap)
-
             # TODO 发送撞击指令与否
             if car_color_group == "BLUE":
                 if Treasure == "BlueTrue":
-                    # serialapi.communicate(0xaa,0xd0,0x00,0x00,0x00,0x00,0x00) # 发送撞击指令
-                    # while True:
-                    #     if str(serialapi.recv)[0:14] == 'aa01d000000000': break # 等待接收到回复信号
                     Treasure_if_hittable = 1 # 宝藏点可撞击
                     self.sublbl.setText("可以撞击，已注入撞击指令")
                     print("可以撞击，已注入撞击指令")
@@ -518,9 +502,6 @@ class Example(QWidget): #TODO 主窗口类
                     print("不可以撞击，未注入撞击指令")
             elif car_color_group == "RED":
                 if Treasure == "RedTrue":
-                    # serialapi.communicate(0xaa,0xd0,0x00,0x00,0x00,0x00,0x00)
-                    # while True:
-                    #     if str(serialapi.recv)[0:14] == 'aa01d000000000': break # 等待接收到回复信号
                     Treasure_if_hittable = 1 # 宝藏点可撞击
                     self.sublbl.setText("可以撞击，已注入撞击指令")
                     print("可以撞击，已注入撞击指令")
@@ -528,7 +509,6 @@ class Example(QWidget): #TODO 主窗口类
                 else:
                     Treasure_if_hittable = 0 # 宝藏点不可撞击
                     print("不可以撞击，未注入撞击指令")
-            # serialapi.recv = str.encode('xxxxxxxxxxx')
             self.camera_label.setPixmap(map_gui_image)
         
         # TODO 到达终点
