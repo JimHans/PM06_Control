@@ -1,2 +1,2 @@
 #!/bin/bash
-python3 "./main.py"
+python3 "./mainV2.py"
