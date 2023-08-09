@@ -1,7 +1,7 @@
 #-*-coding:utf-8-*-
 # Function: Astar algorithm
 #? AStar算法实现模组
-#TODO Version 2.0.20230805
+#TODO Version 2.1.20230805
 #! 依赖项目：numpy networkx itertools
 #! 被引用：main.py
 import numpy as np
@@ -105,24 +105,27 @@ def tsp(boardmap,treasureinmap):
     for i in range(len(treasureinmap)):
         map = Map(boardmap, 18, 0, treasureinmap[i][1], treasureinmap[i][0])
         result = astar(map)
-        np.append(firstdistance,len(result) - 1)
+        firstdistance.append(len(result) - 1)
     # print("firstdistance:", firstdistance)
     # 将距离起点最近的宝藏放在第一个
     for dis in range(len(firstdistance)):
         if firstdistance[dis] == min(firstdistance):
-            treasureinmap[0],treasureinmap[i] = treasureinmap[i],treasureinmap[0]
+            treasureinmap[0],treasureinmap[dis] = treasureinmap[dis],treasureinmap[0]
             # temp = treasureinmap[0]
             # treasureinmap[0] = treasureinmap[i]
             # treasureinmap[i] = temp
     # print("treasureinmap1:", treasureinmap)
     # 计算各个宝藏之间的距离
     distances = np.zeros((8, 8)) # [[0 for i in range(8)] for j in range(8)]
+    result_matrix = [[0]*8 for _ in range(8)]
     for i in range(8):
         for j in range(8):
             if i < j:
                 map = Map(boardmap, treasureinmap[i][1], treasureinmap[i][0], treasureinmap[j][1],
                             treasureinmap[j][0])
                 result = astar(map)
+                result_matrix[i][j] = result
+                result_matrix[j][i] = result
                 distances[i][j] = len(result) - 1
                 distances[j][i] = len(result) - 1
     # print("距离矩阵distance:", distances)
@@ -157,5 +160,5 @@ def tsp(boardmap,treasureinmap):
         temp_treasure_map[index] = treasureinmap[orderget]
     treasureinmap = temp_treasure_map
     print("最优线路:", treasureinmap)
-    return treasureinmap,distances
+    return treasureinmap,distances,result_matrix
     '''tsp部分结束'''
