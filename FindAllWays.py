@@ -1,7 +1,7 @@
 #-*-coding:utf-8-*-
 # Function: Find Ways algorithm
 #? 寻路算法实现模组
-#TODO Version 0.2.20230723
+#TODO Version 1.0.20230810
 #! 依赖项目：numpy | OpenCV
 #! 被引用：main.py
 import cv2
@@ -51,9 +51,9 @@ def FindSecondOne(AllContours): #* 框出第二大的轮廓
     return second
 
 
-def GetGontours(image): #* 提取轮廓
+def GetGontours(image, binary_img): #* 提取轮廓
     # 1、根据二值图找到轮廓
-    contours, hierarchy = cv2.findContours(binary, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+    contours, hierarchy = cv2.findContours(binary_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
     # 2、画出轮廓
     maxone = FindMaxOne(contours)
     secondone = FindSecondOne(contours)
@@ -104,7 +104,7 @@ def findcircles(smarties,cell,cropimg):  #* 找圆
     img = cv2.medianBlur(gray_img, 5)
     # 进行霍夫圆变换
     circles = cv2.HoughCircles(img, cv2.HOUGH_GRADIENT, 1, 20, circles=None, param1=50, param2=26, minRadius=5,
-                                maxRadius=35)
+                                maxRadius=15)
     print("circles",circles)
     # treasure存储圆心坐标
     # 对数据进行四舍五入变为整数
