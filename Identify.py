@@ -1,7 +1,7 @@
 #-*-coding:utf-8-*-
 # Function: Identify Treasure
 #? 宝藏识别模块
-#TODO Version 1.0.20230805
+#TODO Version 1.1.20230811
 #! 依赖项目：OpenCV | numpy
 import cv2
 import numpy
@@ -66,10 +66,10 @@ def FindColorOne(frame,Color):  # (图片，颜色（0蓝，1黄，2绿）)
     colorLow_Blue = numpy.array([86, 43, 46])
     colorHigh_Blue = numpy.array([124, 255, 255])
 
-    colorLow_Yellow = numpy.array([26, 43, 46])
+    colorLow_Yellow = numpy.array([15, 100, 46])
     colorHigh_Yellow = numpy.array([34, 255, 255])
 
-    colorLow_Green = numpy.array([35, 43, 46])
+    colorLow_Green = numpy.array([50, 43, 46])
     colorHigh_Green = numpy.array([77, 255, 255])
 
     if Color == 0:
