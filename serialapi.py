@@ -1,12 +1,13 @@
 #-*-coding:utf-8-*-
 # Function: Serial API
 #? 串口通信API
-#TODO Version 1.0.20230805
+#TODO Version 1.1.20230812
 #! 依赖项目：pyserial
 #! 被引用：main.py
 import serial,time
 import serial.tools.list_ports
 If_Serial_Open = False
+serialName = None
 
 
 SerialPortList = list(serial.tools.list_ports.comports())
@@ -21,18 +22,24 @@ recv = str.encode('xxxxxxxxxxx')       # ? UART回传数据全局存储
 
 '''  下位机数据传输封装  '''
 def communicate(RB0,RB1,RB2,RB3,RB4,RB5,RB6): # 下位机数据传输函数
-    global ser
+    global ser,serialName
     RB7 = 0xff - (sum([RB0,RB1,RB2,RB3,RB4,RB5,RB6]) & 0xff)
     hexcomm = '{:02x} {:02x} {:02x} {:02x} {:02x} {:02x} {:02x} {:02x}'.format(RB0, RB1, RB2, RB3, RB4, RB5, RB6, RB7)
     byte_text = bytes.fromhex(hexcomm)
-    ser.write(byte_text)
+    try:
+        ser.write(byte_text)
+    except:
+        ser.close()
+        ser = serial.Serial(serialName, 115200,timeout=None)
+        ser.open()
+        ser.write(byte_text)
     print(hexcomm)
     time.sleep(0.02)    # 必要的软件延时
 
 ''' Thread-0 UART扫描读取封装 '''
 def uartRx(): # UART扫描读取封装
     
-    global recv, ser
+    global recv, ser,serialName
     
     recv = str.encode('xxxxxxxxxxx')
     
@@ -45,7 +52,13 @@ def uartRx(): # UART扫描读取封装
         if count == 0:
 
             # 读取内容并回显
-            recv = ser.read(8)
+            try:
+                recv = ser.read(8)
+            except:
+                ser.close()
+                ser = serial.Serial(serialName, 115200,timeout=None)
+                ser.open()
+                recv = ser.read(8)
             recv = recv.hex()
             print(recv,"<-Serial Recv")
             ser.flushInput()

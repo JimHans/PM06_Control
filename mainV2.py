@@ -1,7 +1,7 @@
 #-*-coding:utf-8-*-
 # Function: Main program
 #? 主程序
-#TODO Version 2.4.20230811
+#TODO Version 2.5.20230812
 #! 依赖项目：PyQt5 | OpenCV | FindAllWays.py | MapScan | Astar.py | Identify.py | serialapi.py | networkx | itertools
 #* Thread 利用情况：Thread-0 UART通信
 #* Thread 利用情况：Thread-1 路径规划线程
@@ -206,7 +206,7 @@ class Example(QWidget): #TODO 主窗口类
             last_image = image
 
         camera.release()  # 释放相机资源
-        # last_image = cv2.imread('./test/mapwithpoint1.jpg')# 读取test.jpg
+        last_image = cv2.imread('./test/mapwithpoint1.jpg')# 读取test.jpg
 
         #? 照片扫描加纠偏部分开始
         time_calc = time.perf_counter()
@@ -309,6 +309,8 @@ class Example(QWidget): #TODO 主窗口类
         current_position = [18,0] # 当前位置存储
         Treasure_hit_route = [0,0,0] # 宝藏点撞击方向/距挡板距离集合
         Treasure_if_hittable = 0 # 宝藏点是否可撞击
+        Treasure = "None" # 宝藏点标记
+        map_cv2_image_show = map_cv2_image.copy() #* 复制地图用于显示
 
         #! 断点续传全局运行数据设定
         global STOP_Thread,RunCarThreadVar,Startup_Times,final_point_route,False_Treasure_Found,TreasureFinishList,treasureinmapNum,TreasureRange,TreasureSequenceSaver
@@ -368,7 +370,7 @@ class Example(QWidget): #TODO 主窗口类
             corners.append(route_points[-1]) # 补上最终目标点
 
             print("路径动态规划Astar耗时:",time.perf_counter() - Performance_Calc) #! 路径规划性能运行时间显示
-            Performance_Calc = time.perf_counter() #! 路径发送性能运行时间计算
+            # Performance_Calc = time.perf_counter() #! 路径发送性能运行时间计算
 
             #TODO 将路段数目发给下位机
             Full_route_numbers = len(corners)+1 if Treasure_if_hittable == 1 else len(corners)  # 若本次需要撞击宝藏,路段数目+1
@@ -543,6 +545,8 @@ class Example(QWidget): #TODO 主窗口类
             print("路径发送耗时:",time.perf_counter() - Performance_Calc) #! 路径发送运行时间显示
             Performance_Calc = time.perf_counter() #! 路径运行时间计算
             #TODO 等待运行完成发送回复指令
+            for tmp in range(2):
+                ret, Treas_image = camera.read() # 预热相机
             while True:
                 if str(serialapi.recv)[0:14] == 'aa210000000000': break;# 等待接收到回复识别请求信号
                 if STOP_Thread == 1:
@@ -557,8 +561,10 @@ class Example(QWidget): #TODO 主窗口类
             #TODO 如果已经是最终路程，退出循环
             if final_point_route == 1:break
             
-            print("路径运行耗时:",time.perf_counter() - Performance_Calc) #! 路径运行时间显示
+            # print("路径运行耗时:",time.perf_counter() - Performance_Calc) #! 路径运行时间显示
+            Performance_Calc = time.perf_counter() #! 识别性能运行时间计算
             # TODO 拍照识别
+            Treasure = "None"
             if TreasureFinishList[TreasureRange[TreasureSequenceSaver][1]] == 1: # 预测过的宝藏不再识别
                 print("调用预测数据，真宝藏...")
                 # TODO 调用预测结果并判断是否发送撞击指令
@@ -569,7 +575,7 @@ class Example(QWidget): #TODO 主窗口类
                     print("可以撞击，已注入撞击指令")
                     True_Treas_Num += 1 # 真宝藏数量+1
                 elif car_color_group == "RED":
-                    Treasure == "RedTrue"
+                    Treasure = "RedTrue"
                     Treasure_if_hittable = 1 # 宝藏点可撞击
                     self.sublbl.setText("可以撞击，已注入撞击指令")
                     print("可以撞击，已注入撞击指令")
@@ -580,8 +586,7 @@ class Example(QWidget): #TODO 主窗口类
                 while cam_index<3:
                     ret, Treas_image = camera.read() # 读取相机宝藏图像
                     if ret:cam_index+=1
-                cv2.imwrite("./imgsave/Treas_image"+str(int(time.time()))+".jpg",Treas_image)
-                Performance_Calc = time.perf_counter() #! 识别性能运行时间计算
+                # cv2.imwrite("./imgsave/Treas_image"+str(int(time.time()))+".jpg",Treas_image)
                 Treas_img_copy = Treas_image.copy()
                 Treas_image = reshape_image_scan(Treas_image)[0]
                 Treas_image, contours, yellow = Identify_cy.FindColorOne(Treas_img_copy, 1)  # 黄色
@@ -625,23 +630,22 @@ class Example(QWidget): #TODO 主窗口类
             Performance_Calc = time.perf_counter() #! 路径点动态规划运行时间计算
 
             # TODO 根据识别结果动态规划下个目标点,存储宝藏点信息[0为未识别,1为预识别为真,-1为已撞击/遍历我方真宝藏,-2为已撞击/遍历对方真宝藏,-3为已撞击/遍历双方假宝藏(小于0均认为不用前往),-4为对方宝藏(不确定),2为同色待定]
-            if Treasure == "BlueFalse" or Treasure == "RedFalse":TreasureFinishList[TreasureRange[TreasureSequenceSaver][1]] = -3 # 假宝藏标记
+            if Treasure == "BlueFalse" or Treasure == "RedFalse" or Treasure == "None":TreasureFinishList[TreasureRange[TreasureSequenceSaver][1]] = -3 # 假宝藏/无宝藏标记
             elif (car_color_group == "BLUE" and Treasure == "RedTrue") or (car_color_group == "RED" and Treasure == "BlueTrue"):TreasureFinishList[TreasureRange[TreasureSequenceSaver][1]] = -2 # 对方真宝藏标记
             else: TreasureFinishList[TreasureRange[TreasureSequenceSaver][1]] = -1 # 标记已经到达的我方真宝藏为已撞击/遍历
-            cv2.putText(map_cv2_image, str(TreasureSequenceSaver+1), (cell * TreasureRange[TreasureSequenceSaver][0][0] + int(cell * 2), cell * TreasureRange[TreasureSequenceSaver][0][1] + int(cell * 1)), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2, cv2.LINE_AA, False)
             #? 对称宝藏优化
             for i in range(treasureinmapNum): # 遍历所有宝藏点寻找中心对称宝藏
-                if TreasureFinishList[i] ==0 or TreasureFinishList[i] ==2: # 仅更新未撞击/遍历的宝藏点,不覆盖先前推测结果和预识别结果
+                if TreasureFinishList[i] ==0 or TreasureFinishList[i] ==2 or TreasureFinishList[i] ==-4: # 仅更新未撞击/遍历的宝藏点,不覆盖先前推测结果和预识别结果
                     if treasureinmap_ori[i][1] == 18-TreasureRange[TreasureSequenceSaver][0][1] and treasureinmap_ori[i][0] == 18-TreasureRange[TreasureSequenceSaver][0][0]:
                         if Treasure_if_hittable ==1: TreasureFinishList[i] = -2 #* 如果宝藏点可撞击,标记已经到达的宝藏点中心对称点为对方真宝藏(已撞击/遍历)
                         else: # 如果宝藏点不可撞击
                             if (car_color_group == "RED" and Treasure == "BlueTrue") or (car_color_group == "BLUE" and Treasure == "RedTrue"): # 如果是对方真宝藏
                                 TreasureFinishList[i] = 1 #* 标记已经到达的宝藏点中心对称点为己方真宝藏(待撞击)
-                            if (Treasure == "RedFalse" or Treasure == "BlueFalse"): # 如果是假宝藏
+                            elif (Treasure == "RedFalse" or Treasure == "BlueFalse"): # 如果是假宝藏
                                 TreasureFinishList[i] = -3 #* 标记已经到达的宝藏点中心对称点为对方假宝藏(已撞击/遍历)
             #? 同象限宝藏优化
             for i in range(treasureinmapNum): # 遍历所有宝藏点寻找同象限宝藏
-                if TreasureFinishList[i] ==0 or TreasureFinishList[i] ==2: # 仅更新未撞击/遍历的宝藏点,不覆盖先前推测结果
+                if TreasureFinishList[i] ==0 or TreasureFinishList[i] ==2 or TreasureFinishList[i] ==-4: # 仅更新未撞击/遍历的宝藏点,不覆盖先前推测结果
                     if ((treasureinmap_ori[i][0]-9)/abs(treasureinmap_ori[i][0]-9) == (TreasureRange[TreasureSequenceSaver][0][0]-9)/abs(TreasureRange[TreasureSequenceSaver][0][0]-9)) and (
                                 (treasureinmap_ori[i][1]-9)/abs(treasureinmap_ori[i][1]-9) == (TreasureRange[TreasureSequenceSaver][0][1]-9)/abs(TreasureRange[TreasureSequenceSaver][0][1]-9)):
                         if (car_color_group == "RED" and (Treasure == "RedTrue" or Treasure == "RedFalse")) or (car_color_group == "BLUE" and (Treasure == "BlueTrue" or Treasure == "BlueFalse")):
@@ -666,41 +670,43 @@ class Example(QWidget): #TODO 主窗口类
                     if TreasureFinishList[i] ==2:TreasureFinishList[i] =1;False_Treasure_Found=1 #* 标记未确定宝藏为己方真宝藏(待撞击)
             #? 动态计算下一目的地
             Total_Visited_Treasure = 0 # 已经遍历的宝藏点数量
+            # map_cv2_image_show = map_cv2_image.copy() #* 复制地图用于显示
+            cv2.putText(map_cv2_image_show, str(TreasureSequenceSaver+1), (cell * TreasureRange[TreasureSequenceSaver][0][0] + int(cell * 2), cell * TreasureRange[TreasureSequenceSaver][0][1] + int(cell * 1)), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2, cv2.LINE_AA, False)
             for i in range(10): #* 检查是否所有点都去过 并更新显示数据
                 if TreasureFinishList[i] < 0: 
                     Total_Visited_Treasure += 1 # 计算总遍历宝藏数目
-                    if TreasureFinishList[i] == -2: # 对方真宝藏
-                        if car_color_group == "RED": 
-                            cv2.circle(map_cv2_image, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (255, 0, 0), 24)
-                            cv2.circle(map_cv2_image, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (0, 255, 255), 12)
-                        else:
-                            cv2.circle(map_cv2_image, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (0, 0, 255), 24)
-                            cv2.circle(map_cv2_image, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (0, 255, 0), 12)
-                    if TreasureFinishList[i] == -3: # 假宝藏
-                        cv2.circle(map_cv2_image, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (0,255, 255), 24)
-                        cv2.circle(map_cv2_image, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (0, 255, 0), 12)
-                    if TreasureFinishList[i] == -4: # 对方不确定宝藏
-                        if car_color_group == "RED":cv2.circle(map_cv2_image, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (255, 0, 0), 24)
-                        else:cv2.circle(map_cv2_image, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (0, 0, 255), 24)
-                    if TreasureFinishList[i] == -1: # 已撞击宝藏
-                        if car_color_group == "RED":
-                            cv2.circle(map_cv2_image, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (0, 0, 255), 24)
-                            cv2.circle(map_cv2_image, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (0, 255, 0), 12)
-                        else:
-                            cv2.circle(map_cv2_image, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (255, 0, 0), 24)
-                            cv2.circle(map_cv2_image, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (0, 255, 255), 12)
-                    if TreasureFinishList[i] == 1: # 预识别己方真宝藏
-                        if car_color_group == "RED": 
-                            cv2.circle(map_cv2_image, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (0, 0, 255), 24)
-                            cv2.circle(map_cv2_image, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (0, 255, 0), 12)
-                        else:
-                            cv2.circle(map_cv2_image, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (255, 0, 0), 24)
-                            cv2.circle(map_cv2_image, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (0, 255, 255), 12)
-                    if TreasureFinishList[i] == 2: # 预识别我方待定宝藏
-                        if car_color_group == "RED": cv2.circle(map_cv2_image, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (0, 0, 255), 24)
-                        else:cv2.circle(map_cv2_image, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (255, 0, 0), 24)
-            if Treasure=='None' and TreasureFinishList[TreasureRange[TreasureSequenceSaver][1]] == -1: # 无宝藏
-                cv2.circle(map_cv2_image, (cell * TreasureRange[TreasureSequenceSaver][0][0] + int(cell * 3), cell * TreasureRange[TreasureSequenceSaver][0][1] + int(cell * 1)), 2, (0, 0, 0), 24)
+                if TreasureFinishList[i] == -2: # 对方真宝藏
+                    if car_color_group == "RED": 
+                        cv2.circle(map_cv2_image_show, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (255, 0, 0), 24)
+                        cv2.circle(map_cv2_image_show, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (0, 255, 255), 12)
+                    else:
+                        cv2.circle(map_cv2_image_show, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (0, 0, 255), 24)
+                        cv2.circle(map_cv2_image_show, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (0, 255, 0), 12)
+                elif TreasureFinishList[i] == -3: # 假宝藏
+                    cv2.circle(map_cv2_image_show, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (0,255, 0), 24)
+                    cv2.circle(map_cv2_image_show, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (0, 255, 255), 12)
+                elif TreasureFinishList[i] == -4: # 对方不确定宝藏
+                    if car_color_group == "RED":cv2.circle(map_cv2_image_show, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (255, 0, 0), 24)
+                    else:cv2.circle(map_cv2_image_show, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (0, 0, 255), 24)
+                elif TreasureFinishList[i] == -1: # 已撞击宝藏
+                    if car_color_group == "RED":
+                        cv2.circle(map_cv2_image_show, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (0, 0, 255), 24)
+                        cv2.circle(map_cv2_image_show, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (0, 255, 0), 12)
+                    else:
+                        cv2.circle(map_cv2_image_show, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (255, 0, 0), 24)
+                        cv2.circle(map_cv2_image_show, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (0, 255, 255), 12)
+                elif TreasureFinishList[i] == 1: # 预识别己方真宝藏
+                    if car_color_group == "RED": 
+                        cv2.circle(map_cv2_image_show, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (0, 0, 255), 24)
+                        cv2.circle(map_cv2_image_show, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (0, 255, 0), 12)
+                    else:
+                        cv2.circle(map_cv2_image_show, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (255, 0, 0), 24)
+                        cv2.circle(map_cv2_image_show, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (0, 255, 255), 12)
+                elif TreasureFinishList[i] == 2: # 预识别我方待定宝藏
+                    if car_color_group == "RED": cv2.circle(map_cv2_image_show, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (0, 0, 255), 24)
+                    else:cv2.circle(map_cv2_image_show, (cell * treasureinmap_ori[i][0] + int(cell * 3), cell * treasureinmap_ori[i][1] + int(cell * 1)), 2, (255, 0, 0), 24)
+            if Treasure=='None' and TreasureFinishList[TreasureRange[TreasureSequenceSaver][1]] == -3: # 无宝藏
+                cv2.circle(map_cv2_image_show, (cell * TreasureRange[TreasureSequenceSaver][0][0] + int(cell * 3), cell * TreasureRange[TreasureSequenceSaver][0][1] + int(cell * 1)), 2, (0, 0, 0), 24)
     
             if True_Treas_Num == 3 or TreasureSequenceSaver+2 ==len(result_final) or Total_Visited_Treasure==8: 
                 TreasureRange.append([[18,0],10])
@@ -720,7 +726,7 @@ class Example(QWidget): #TODO 主窗口类
                 if TreasureFinishList[i]==-1:boardmap[treasureinmap_ori[i][1]][treasureinmap_ori[i][0]] = 1 # 屏蔽除已撞击我方宝藏以外的所有宝藏点不能走
                 else:boardmap[treasureinmap_ori[i][1]][treasureinmap_ori[i][0]] = 0
 
-            qimg = QtGui.QImage(map_cv2_image.data, map_cv2_image.shape[1], map_cv2_image.shape[0],map_cv2_image.shape[1]*3, QtGui.QImage.Format_BGR888)
+            qimg = QtGui.QImage(map_cv2_image_show.data, map_cv2_image_show.shape[1], map_cv2_image_show.shape[0],map_cv2_image_show.shape[1]*3, QtGui.QImage.Format_BGR888)
             pixmap = QtGui.QPixmap.fromImage(qimg)
             self.camera_label.setPixmap(pixmap)
 
