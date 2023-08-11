@@ -206,7 +206,7 @@ class Example(QWidget): #TODO 主窗口类
             last_image = image
 
         camera.release()  # 释放相机资源
-        last_image = cv2.imread('./test/mapwithpoint1.jpg')# 读取test.jpg
+        # last_image = cv2.imread('./test/mapwithpoint1.jpg')# 读取test.jpg
 
         #? 照片扫描加纠偏部分开始
         time_calc = time.perf_counter()
@@ -324,9 +324,10 @@ class Example(QWidget): #TODO 主窗口类
             for i in range(len(treasureinmap_ori)): # 遍历所有宝藏点寻找中心对称宝藏
                 if treasureinmap_ori[i][1] == treasureinmap[0][1] and treasureinmap_ori[i][0] == treasureinmap[0][0]:
                     TreasureRange[0][1] = i;break # 找到第一个宝藏点的原始位置
-        camID = find_available_camera()
-        camera = Camera(camID) # 提前打开相机 
-        camera.open()
+        camera = None # 创建相机对象
+        # camID = find_available_camera()
+        # camera = Camera(camID) # 提前打开相机 
+        # camera.open()
 
         #TODO 运行8段路程，完成宝藏遍历
         for itel in range(len(result_final)):
@@ -396,6 +397,7 @@ class Example(QWidget): #TODO 主窗口类
 
             #TODO 计算并发送每段路程控制指令并等待运行完成
             for index,corner in enumerate(corners):
+                If_Treasure_On_The_Way = 0 #* 检测宝藏点是否在目标前进方向上
                 #* 计算拐点与当前位置的距离
                 dx2 = corner[0] - current_position[0];dy2 = corner[1] - current_position[1]
                 if (index+1)<len(corners): # 如果不是最后一个拐点
@@ -404,24 +406,31 @@ class Example(QWidget): #TODO 主窗口类
                     TempArcMarker = 0 #* 临时记录弧线距离(默认为0)
                     if dy2_future>0:
                         while True: #! 计算转向弧距
-                            if not((corner[1]-TempArcMarker)>=0 and boardmap[corner[0]][corner[1]-TempArcMarker] == 1):break
+                            if not((corner[1]-TempArcMarker)>=0 and boardmap[corner[0]][corner[1]-TempArcMarker] == 1):
+                                if boardmap[corner[0]][corner[1]-TempArcMarker] == 2:If_Treasure_On_The_Way=1
+                                break
                             TempArcMarker += 1
                     elif dy2_future<0:
                         while True: #! 计算转向弧距
-                            if not((TempArcMarker+corner[1])<19 and boardmap[corner[0]][TempArcMarker+corner[1]] == 1):break
+                            if not((TempArcMarker+corner[1])<19 and boardmap[corner[0]][TempArcMarker+corner[1]] == 1):
+                                if boardmap[corner[0]][TempArcMarker+corner[1]] == 2:If_Treasure_On_The_Way=1
+                                break
                             TempArcMarker += 1
                     elif dx2_future>0:
                         while True: #! 计算转向弧距
-                            if not((corner[0]-TempArcMarker)>=0 and boardmap[corner[0]-TempArcMarker][corner[1]] == 1):break
+                            if not((corner[0]-TempArcMarker)>=0 and boardmap[corner[0]-TempArcMarker][corner[1]] == 1):
+                                if boardmap[corner[0]-TempArcMarker][corner[1]] == 2:If_Treasure_On_The_Way=1
+                                break
                             TempArcMarker += 1
                     elif dx2_future<0:
                         while True: #! 计算转向弧距
-                            if not((TempArcMarker+corner[0])<19 and boardmap[TempArcMarker+corner[0]][corner[1]] == 1):break
+                            if not((TempArcMarker+corner[0])<19 and boardmap[TempArcMarker+corner[0]][corner[1]] == 1):
+                                if boardmap[TempArcMarker+corner[0]][corner[1]] == 2:If_Treasure_On_The_Way=1
+                                break
                             TempArcMarker += 1
                 else: # 如果是最后一个拐点
                     dx2_future = -1919810;dy2_future = -1919810;TempArcMarker = 1
                 
-                If_Treasure_On_The_Way = 0 #* 检测宝藏点是否在目标前进方向上
                 #* 地图向右运行相关参数计算
                 if dy2 >0: # 向右
                     Direction = 0;SensDirection = 0 if index+1 < len(corners) else 2;single_route_steps = dy2
@@ -545,6 +554,10 @@ class Example(QWidget): #TODO 主窗口类
             print("路径发送耗时:",time.perf_counter() - Performance_Calc) #! 路径发送运行时间显示
             Performance_Calc = time.perf_counter() #! 路径运行时间计算
             #TODO 等待运行完成发送回复指令
+            if itel == 0:
+                camID = find_available_camera()
+                camera = Camera(camID) # 打开相机
+                camera.open()
             for tmp in range(2):
                 ret, Treas_image = camera.read() # 预热相机
             while True:
@@ -586,7 +599,7 @@ class Example(QWidget): #TODO 主窗口类
                 while cam_index<3:
                     ret, Treas_image = camera.read() # 读取相机宝藏图像
                     if ret:cam_index+=1
-                # cv2.imwrite("./imgsave/Treas_image"+str(int(time.time()))+".jpg",Treas_image)
+                cv2.imwrite("./imgsave/Treas_image"+str(int(time.time()))+".jpg",Treas_image)
                 Treas_img_copy = Treas_image.copy()
                 Treas_image = reshape_image_scan(Treas_image)[0]
                 Treas_image, contours, yellow = Identify_cy.FindColorOne(Treas_img_copy, 1)  # 黄色
