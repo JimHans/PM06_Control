@@ -599,7 +599,7 @@ class Example(QWidget): #TODO 主窗口类
                 while cam_index<3:
                     ret, Treas_image = camera.read() # 读取相机宝藏图像
                     if ret:cam_index+=1
-                cv2.imwrite("./imgsave/Treas_image"+str(int(time.time()))+".jpg",Treas_image)
+                # cv2.imwrite("./imgsave/Treas_image"+str(int(time.time()))+".jpg",Treas_image)
                 Treas_img_copy = Treas_image.copy()
                 Treas_image = reshape_image_scan(Treas_image)[0]
                 Treas_image, contours, yellow = Identify_cy.FindColorOne(Treas_img_copy, 1)  # 黄色

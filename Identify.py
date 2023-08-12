@@ -86,7 +86,7 @@ def FindColorOne(frame,Color):  # (图片，颜色（0蓝，1黄，2绿）)
     # cv2.imshow('frame', frame)
 
     # Blur methods available, comment or uncomment to try different blur methods.
-    frameBGR = cv2.GaussianBlur(frame, (7, 7), 0)
+    frameBGR = cv2.GaussianBlur(frame, (7, 7), 10)
     # frameBGR = cv2.medianBlur(frameBGR, 5)
     # frameBGR = cv2.bilateralFilter(frameBGR, 15 ,75, 75)
     # Show blurred image.
