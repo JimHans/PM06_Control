@@ -1,7 +1,7 @@
 #-*-coding:utf-8-*-
 # Function: Identify Treasure
 #? 宝藏识别模块
-#TODO Version 1.2.20230812
+#TODO Version 2.0.20230822
 #! 依赖项目：OpenCV | numpy
 import cv2
 import numpy
@@ -104,6 +104,9 @@ def FindColorOne(frame,Color):  # (图片，颜色（0蓝，1黄，2绿）)
     kernal = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernal)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernal)
+    
+    # 在mask的四周涂一圈黑色，避免边缘检测时出现边缘
+    mask = cv2.copyMakeBorder(mask, 1, 1, 1, 1, cv2.BORDER_CONSTANT, value=0)
 
     # Show morphological transformation mask
     image, contours, hierachy = detecte(mask)
@@ -180,6 +183,8 @@ def FindRedOne(frame,contours):
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernal)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernal)
 
+    # 在mask的四周涂一圈黑色，避免边缘检测时出现边缘
+    mask = cv2.copyMakeBorder(mask, 1, 1, 1, 1, cv2.BORDER_CONSTANT, value=0)
     # Show morphological transformation mask
     # cv2.imshow('maskred', mask)
     # Put mask over top of the original image.

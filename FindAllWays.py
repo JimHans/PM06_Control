@@ -1,7 +1,7 @@
 #-*-coding:utf-8-*-
 # Function: Find Ways algorithm
 #? 寻路算法实现模组
-#TODO Version 1.0.20230810
+#TODO Version 2.0.20230821
 #! 依赖项目：numpy | OpenCV
 #! 被引用：main.py
 import cv2
@@ -29,7 +29,7 @@ def ToBinray(image): #* 转二进制图像
     # 2、二进制图像
     # ret, binary = cv2.threshold(imgray, 127, 255, 0)
     blur = cv2.GaussianBlur(imgray, (5, 5), 0)
-    ret, binary=cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    ret, binary = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     return ret, binary
 
 
@@ -51,15 +51,16 @@ def FindSecondOne(AllContours): #* 框出第二大的轮廓
     return second
 
 
-def GetGontours(image, binary_img): #* 提取轮廓
-    # 1、根据二值图找到轮廓
-    contours, hierarchy = cv2.findContours(binary_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
-    # 2、画出轮廓
-    maxone = FindMaxOne(contours)
-    secondone = FindSecondOne(contours)
-    dst = cv2.drawContours(image, contours, secondone, (255, 0, 255), 1)
-    # print("画框面积为", cv2.contourArea(contours[secondone]))
-    cropimg = BoundingRect(image, contours, secondone)
+def GetGontours(image,cropimg): #* 提取轮廓
+    # # 1、根据二值图找到轮廓
+    # contours, hierarchy = cv2.findContours(Binary_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+    # # 2、画出轮廓
+    # maxone = FindMaxOne(contours)
+    # secondone = FindSecondOne(contours)
+    # dst = cv2.drawContours(image, contours, secondone, (255, 0, 255), 1)
+    # # print("画框面积为", cv2.contourArea(contours[secondone]))
+    # cropimg = BoundingRect(image, contours, secondone) # 裁剪出棋盘
+
     cropimgclone = cropimg.copy()
     # get length and width of cropimg
     w, h = cropimg.shape[1], cropimg.shape[0]
@@ -68,12 +69,10 @@ def GetGontours(image, binary_img): #* 提取轮廓
 
     treasure, treasureinmap = findcircles(cropimgclone, cell, cropimg)
     _, board,cell = pic(cropimg)
-    for i in range(8):
-        cv2.circle(cropimg, (treasure[i][0], treasure[i][1]), 2, (255, 0, 255), 2)
     for i in range(len(treasureinmap)):
-        cv2.circle(cropimg, (cell * treasureinmap[i][0] + int(cell * 3), cell * treasureinmap[i][1] + int(cell * 1)), 2, (255, 0, 0), 2)
-
-    return contours, board, cropimg, cell, treasureinmap
+        cv2.circle(cropimg, (cell * treasureinmap[i][0] + int(cell * 3), cell * treasureinmap[i][1] + int(cell * 1)), 2, (255, 255, 255), 22)
+        cv2.circle(cropimg, (cell * treasureinmap[i][0] + int(cell * 3), cell * treasureinmap[i][1] + int(cell * 1)), 2, (255, 0, 0), 4)
+    return board, cropimg, cell, treasureinmap
 
 
 def BoundingRect(img, contours, whichone=0): #* 获取边界矩形
@@ -113,9 +112,9 @@ def findcircles(smarties,cell,cropimg):  #* 找圆
     treasureinmap = []
     for i in circles[0, :]:
         # 画出来圆心
-        cv2.circle(cropimg, (i[0], i[1]), int(i[2]/2), (255, 255, 255), 25)
-        treasure.append([i[0],i[1]])
-        #将treasure中的坐标值就近转换为25的倍数
+        # cv2.circle(cropimg, (i[0], i[1]), int(i[2]/2), (255, 255, 255), 25)
+        # treasure.append([i[0],i[1]])
+        # 以cell为单位，将圆心坐标转换为棋盘坐标
         if i[0]%cell>cell/2:
             i[0] = i[0]+(cell-i[0]%cell)
         else:
@@ -133,18 +132,17 @@ def findcircles(smarties,cell,cropimg):  #* 找圆
 def getBoard(imm, cropimg): #* 获取棋盘
     x, y, w, h = cv2.boundingRect(imm)
     print("棋盘尺寸 x,y,w,h:", x, y, w, h)
-    board = [[0 for w in range(20)] for h in range(20)]  # 创建数组
+    # board = [[0 for w in range(20)] for h in range(20)]  # 创建数组
     cell =int( h * 1.0/ 20);print("cellimm尺寸:",cell)
-    for h in range(20):
-        for w in range(20):
-            if imm[cell * h+int(cell*1)-1, cell * w + int(cell * 3)-1] == np.uint8(255):  # 坐标转换
-                board[h][w] = 255
+    # for h in range(20):
+    #     for w in range(20):
+    #         if imm[cell * h+int(cell*1)-1, cell * w + int(cell * 3)-1] == np.uint8(255):  # 坐标转换
+    #             board[h][w] = 255
     # print("board",board)
+    board = [[255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 255, 255, 255, 255, 255, 0, 255, 255, 255, 0], [255, 0, 255, 0, 0, 0, 255, 0, 255, 0, 255, 0, 0, 0, 255, 0, 255, 0, 0, 0], [255, 0, 255, 0, 255, 255, 255, 0, 255, 255, 255, 255, 255, 0, 255, 0, 255, 255, 255, 0], [255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 255, 0, 0, 0, 255, 0], [255, 0, 255, 255, 255, 255, 255, 0, 255, 255, 255, 255, 255, 0, 255, 0, 255, 255, 255, 0], [0, 0, 255, 0, 255, 0, 255, 0, 0, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0], [255, 255, 255, 0, 255, 0, 255, 255, 255, 255, 255, 0, 255, 255, 255, 255, 255, 0, 255, 0], [255, 0, 0, 0, 255, 0, 255, 0, 0, 0, 0, 0, 0, 0, 255, 0, 0, 0, 255, 0], [255, 0, 255, 255, 255, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0], [255, 0, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, 255, 0], [255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 255, 255, 255, 0, 255, 0], [255, 0, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 255, 0, 255, 0, 0, 0, 255, 0], [255, 0, 255, 255, 255, 255, 255, 0, 255, 255, 255, 255, 255, 0, 255, 0, 255, 255, 255, 0], [0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 0, 0, 255, 0, 255, 0, 255, 0, 0, 0], [255, 255, 255, 0, 255, 0, 255, 255, 255, 255, 255, 0, 255, 255, 255, 255, 255, 0, 255, 0], [255, 0, 0, 0, 255, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255, 0], [255, 255, 255, 0, 255, 0, 255, 255, 255, 255, 255, 0, 255, 255, 255, 0, 255, 0, 255, 0], [0, 0, 255, 0, 255, 0, 0, 0, 255, 0, 255, 0, 255, 0, 0, 0, 255, 0, 255, 0], [255, 255, 255, 0, 255, 255, 255, 255, 255, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
     # 数组以图像形式打印
     for h in range(20):
         for w in range(20):
             if board[h][w] == 255:
                 cv2.rectangle(cropimg, (cell * w+int(cell * 2.5), cell * h+int(cell * 0.5)), (cell * w + int(cell * 2.5) + cell, cell * h + int(cell * 0.5) + cell), (0, 255, 0), 2)
-    # cv2.imshow("BoardMap", cropimg)
-    # cv2.waitKey(0)
     return board, cell

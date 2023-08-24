@@ -1,9 +1,9 @@
-#-*-coding:utf-8-*-
+# -*-coding:utf-8-*-
 # Function: MapScan algorithm
-#? 地图扫描算法实现模组
-#TODO Version 1.0.20230805
-#! 依赖项目：numpy | copy | OpenCV | numba
-#! 被引用：main.py
+# ? 地图扫描算法实现模组
+# TODO Version 2.0.20230818
+# ! 依赖项目：numpy | copy | OpenCV | numba
+# ! 被引用：main.py
 import numpy as np
 import copy, cv2
 
@@ -42,8 +42,8 @@ def compute_1(contours, i, j): #* 最外面的轮廓和子轮廓的比例
     area2 = cv2.contourArea(contours[j])
     if area2 == 0:
         return False
-    ratio = area1 * 1.0 / area2
-    if abs(ratio ):
+    ratio = area1 * 1.0 / area2  # 计算比例
+    if abs(ratio):               # 比例在一定范围内
         return True
     return False
 
@@ -54,7 +54,7 @@ def compute_2(contours, i, j): #* 子轮廓和子子轮廓的比例
     if area2 == 0:
         return False
     ratio = area1 * 1.0 / area2
-    if abs(ratio ):
+    if abs(ratio):
         return True
     return False
 
@@ -70,7 +70,7 @@ def detect_contours(vec):#* 判断这个轮廓和它的子轮廓以及子子轮�
     distance_1 = np.sqrt((vec[0] - vec[2]) ** 2 + (vec[1] - vec[3]) ** 2)
     distance_2 = np.sqrt((vec[0] - vec[4]) ** 2 + (vec[1] - vec[5]) ** 2)
     distance_3 = np.sqrt((vec[2] - vec[4]) ** 2 + (vec[3] - vec[5]) ** 2)
-    if sum((distance_1, distance_2, distance_3)) / 3 < 3:
+    if sum((distance_1, distance_2, distance_3)) / 3 < 5:
         return True
     return False
 
@@ -87,8 +87,16 @@ def find(image, contours, hierachy, root=0):#* 找到符合要求的轮廓
                 cx3, cy3 = compute_center(contours, child_child)
                 if detect_contours([cx1, cy1, cx2, cy2, cx3, cy3]):
                     rec.append([cx1, cy1, i, child, child_child])
+    print("rec:", rec)
+    # 打印所有的轮廓中心点
+    # for i in range(len(rec)):
+    #     print("rec:", rec[i][0], rec[i][1])
+    return rec, image
+
+
+def affine_transformation(image, rec, new_width, new_height):
     #? 计算得到所有在比例上符合要求的轮廓中心点
-    xblue, yblue = FindBlueOne(image)
+    xblue, yblue, area = FindBlueOne(image)
     #? 以距离xblue，yblue这个点最近的点为第0个点，将四个轮廓中心点按顺时针排序
     if len(rec) != 0:
         rec = sorted(rec, key=lambda x: x[0])
@@ -110,7 +118,7 @@ def find(image, contours, hierachy, root=0):#* 找到符合要求的轮廓
         
         max = -100000
         for i in range(3): # 找到第三大的斜率
-            if slope[i+1] >max and i+1 != h[1] and i+1 != h[2] :
+            if slope[i+1] >max and i+1 != h[1] and i+1 != h[2]:
                 max = slope[i+1]
                 h[3] = i+1
         print("h1,h2,h3斜率计算:", h[1], h[2], h[3])
@@ -139,14 +147,7 @@ def find(image, contours, hierachy, root=0):#* 找到符合要求的轮廓
                 recx[j][0] = rec[j+k-4][0]
                 recx[j][1] = rec[j+k-4][1]
 
-    recx = np.array(recx)
-    box1 = np.array([[recx[0][0], recx[0][1]], [recx[1][0], recx[1][1]], [recx[3][0], recx[3][1]], [recx[2][0], recx[2][1]]])
-    result = copy.deepcopy(image)  # 拷贝原图
-    cv2.drawContours(result, [box1], 0, (0, 0, 255), 2)  # 连接定位点中点
-    return recx, image
-
-
-def affine_transformation(image, rec, new_width, new_height):
+    rec = np.array(recx)
     '''透视变换'''
     pts1 = np.float32([[rec[1][0], rec[1][1]], [rec[0][0], rec[0][1]], [rec[2][0], rec[2][1]], [rec[3][0], rec[3][1]]])
     pts2 = np.float32([[0, 0], [new_width, 0], [0, new_height], [new_width, new_height]])
@@ -156,10 +157,10 @@ def affine_transformation(image, rec, new_width, new_height):
 
 
 def FindBlueOne(frame): #* 找到最近的蓝色点
-    frame = reshape_image_scan(frame)
-    frame = frame[0]
+    # frame = reshape_image_scan(frame)
+    # frame = frame[0]
     # 蓝色hsv
-    lowHue  = 100;lowSat  = 43; lowVal  = 46
+    lowHue = 90;lowSat = 60;lowVal = 46
     highHue = 124;highSat = 255;highVal = 255
 
     # 红色hsv
@@ -182,13 +183,52 @@ def FindBlueOne(frame): #* 找到最近的蓝色点
     # 检测轮廓
     image, contours, hierachy = detect_blue(mask)
     second = FindSecondOne(contours)
+    # 计算第二大轮廓的面积
+    area = cv2.contourArea(contours[second])
+    # 计算第二大轮廓的中心点
     xblue, yblue = compute_center(contours, second)
     # 画出轮廓
     cv2.drawContours(image, contours, second, (0, 0, 255), 3)
-    return xblue, yblue
+    return xblue, yblue, area
 
 
-def FindMaxOne(AllContours): #* 找到最大的轮廓
+def FindRedOne(frame):  #* 找到最近的红色点
+    # frame = reshape_image_scan(frame)
+    # frame = frame[0]
+    # hsv
+    colorLow_0 = np.array([0, 60, 30])
+    colorHigh_0 = np.array([30, 255, 255])
+
+    colorLow_1 = np.array([156, 60, 30])
+    colorHigh_1 = np.array([180, 255, 255])
+
+    # 高斯模糊
+    frameBGR = cv2.GaussianBlur(frame, (7, 7), 0)
+    # 转换成HSV
+    hsv = cv2.cvtColor(frameBGR, cv2.COLOR_BGR2HSV)
+
+    # 根据阈值构建掩膜
+    mask0 = cv2.inRange(hsv, colorLow_0, colorHigh_0)
+    mask1 = cv2.inRange(hsv, colorLow_1, colorHigh_1)
+    mask = mask0 + mask1
+
+    # 对原图像和掩膜进行位运算
+    kernal = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernal)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernal)
+    # 检测轮廓
+    image, contours, hierachy = detect_blue(mask)
+    print("len(contours):", len(contours))
+    second = FindSecondOne(contours)
+    # 计算第二大轮廓的面积
+    area = cv2.contourArea(contours[second])
+    # 计算第二大轮廓的中心点
+    xred, yred = compute_center(contours, second)
+    # 画出轮廓
+    cv2.drawContours(image, contours, second, (0, 0, 255), 3)
+    return xred, yred, area
+
+def FindMaxOne(AllContours):  # * 找到最大的轮廓
     max = 0
     for i in range(len(AllContours)):
         if cv2.contourArea(AllContours[i]) > cv2.contourArea(AllContours[max]) and i != 0:max = i
