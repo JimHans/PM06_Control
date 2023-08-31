@@ -529,8 +529,8 @@ class Example(QWidget): #TODO 主窗口类
                         if (current_position[0]==10 and current_position[1]<6) or (
                                 current_position[0]==8 and current_position[1]<12 and current_position[1]>=6):SensDirection = 2
                         #! [10,4],[8,14]特殊点传感器方向特殊处理
-                        if (current_position[0]==10 and current_position[1]==4) and (boardmap[10][2]!=0):SensDirection = 0
-                        if (current_position[0]==8 and current_position[1]==14) and (boardmap[8][16]!=0):SensDirection = 2
+                        if (current_position[0]==10 and current_position[1]==4) and (boardmap[10][2]!=1):SensDirection = 0
+                        elif (current_position[0]==8 and current_position[1]==14) and (boardmap[8][16]!=1):SensDirection = 2
                         TempMarker = 0 # 临时记录挡板距离
                         if SensDirection == 2:
                             while True: #! 检测距挡板距离-最后路径段
@@ -555,8 +555,8 @@ class Example(QWidget): #TODO 主窗口类
                         if (current_position[0]==8 and current_position[1]>12) or (
                                 current_position[0]==10 and current_position[1]<=12 and current_position[1]>6):SensDirection = 0
                         #! [10,4],[8,14]特殊点传感器方向特殊处理
-                        if (current_position[0]==10 and current_position[1]==4) and (boardmap[10][2]!=0):SensDirection = 0
-                        if (current_position[0]==8 and current_position[1]==14) and (boardmap[8][16]!=0):SensDirection = 2
+                        if (current_position[0]==10 and current_position[1]==4) and (boardmap[10][2]!=1):SensDirection = 0
+                        elif (current_position[0]==8 and current_position[1]==14) and (boardmap[8][16]!=1):SensDirection = 2
                         TempMarker = 0 # 临时记录挡板距离
                         if SensDirection == 0:
                             while True: #! 检测距挡板距离-最后路径段
@@ -652,10 +652,10 @@ class Example(QWidget): #TODO 主窗口类
                 print("路径发送耗时:",time.perf_counter() - Performance_Calc) #! 路径发送运行时间显示
                 Performance_Calc = time.perf_counter() #! 路径运行时间计算
                 #TODO 等待运行完成发送回复指令
-                if itel == 0:
-                    camID = find_available_camera()
-                    camera = Camera(camID) # 打开相机
-                    camera.open()
+                # if itel == 0:
+                camID = find_available_camera()
+                camera = Camera(camID) # 打开相机
+                camera.open()
                 for tmp in range(2):
                     ret, Treas_image = camera.read() # 预热相机
                 Car_Detect_Flag = 0 # 车辆检测标志位
@@ -710,6 +710,7 @@ class Example(QWidget): #TODO 主窗口类
                 while cam_index<3:
                     ret, Treas_image = camera.read() # 读取相机宝藏图像
                     if ret:cam_index+=1
+                camera.release()  # 释放相机资源
                 # cv2.imwrite("./imgsave/Treas_image"+str(int(time.time()))+".jpg",Treas_image)
                 Treas_img_copy = Treas_image.copy()
                 Treas_image = reshape_image_scan(Treas_image)[0]
