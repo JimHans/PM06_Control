@@ -18,12 +18,14 @@
 
 ## 🕹部署项目
 ---
-运行环境：Python 3.9及以上
+运行环境：建议Python 3.9及以上
 
-运行方法
+部署方法：
 - 使用 `git clone https://github.com/JimHans/PM06_Control.git` 克隆本仓库到开发板桌面，请注意开发板需要至少支持aarch64指令集
 - 使用`pip3 install -r requirements.txt`安装本项目依赖
-- 使用Cython对`Astar.py` `MapScan.py` `Identify.py`进行静态化预编译
+- 使用Cython对`Astar.py` `MapScan.py` `Identify.py`进行静态化预编译，步骤如下：
+    - 运行`python3 setup.py build_ext --inplace`进行预编译
+    - 检测是否正常编译，若无报错则编译成功
 - 使用`python3 mainV2.py`运行本项目V2版本，或者通过`./start_car.sh`脚本一键启动
 
 - ---
@@ -33,6 +35,7 @@
 To be filled
 
 ## 🤔存在问题？
+- 若运行程序时出现`could not load the qt platform plugin xcb in even though it was found`错误，请尝试安装`opencv-python-headless`，，或者安装`sudo apt-get install '^libxcb.*-dev' libx11-xcb-dev libglu1-mesa-dev libxrender-dev libxi-dev libxkbcommon-dev libxkbcommon-x11-dev `解决
 如果在复现或使用过程中遇到问题，请在Issues中提出，我们会在收到反馈后尽量解决。
 
 ## 🧡感谢：
